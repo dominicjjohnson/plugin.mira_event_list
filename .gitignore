@@ -1,0 +1,41 @@
+# WordPress plugin .gitignore
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+
+# Node modules (if you add build tools later)
+node_modules/
+npm-debug.log*
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Temporary files
+*.tmp
+*.temp
+
+# WordPress specific
+wp-config.php
+.htaccess
+
+# Plugin specific
+/vendor/
+composer.lock

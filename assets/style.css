@@ -1,0 +1,124 @@
+/* Mira Event List Frontend Styles */
+
+.mira-event-list {
+    margin: 20px 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    align-items: stretch;
+}
+
+.mira-event-item {
+    border: 1px solid #e1e1e1;
+    border-radius: 8px;
+    padding: 20px;
+    background: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.event-logo {
+    margin-bottom: 15px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.event-logo img {
+    max-width: 250px;
+    width: 100%;
+    height: auto;
+    border-radius: 4px;
+    transition: opacity 0.3s ease, transform 0.2s ease;
+}
+
+.event-logo-link {
+    display: inline-block;
+    text-decoration: none;
+}
+
+.event-logo-link:hover img {
+    opacity: 0.9;
+    transform: scale(1.02);
+}
+
+.event-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.event-date {
+    margin-bottom: 15px;
+    color: #666;
+    font-size: 1em;
+    flex-shrink: 0;
+}
+
+.event-date strong {
+    color: #333;
+}
+
+.event-excerpt {
+    margin-bottom: 15px;
+    line-height: 1.6;
+    color: #555;
+    flex: 1;
+    overflow: hidden;
+}
+
+.event-goto-button-bottom {
+    margin-top: auto;
+    text-align: center;
+    flex-shrink: 0;
+    padding-top: 10px;
+}
+
+.goto-event-btn-bottom {
+    display: inline-block;
+    padding: 12px 24px;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: 500;
+    transition: opacity 0.3s ease, transform 0.2s ease;
+    width: 100%;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.goto-event-btn-bottom:hover {
+    color: #fff;
+    text-decoration: none;
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+/* Responsive design */
+@media (max-width: 992px) {
+    .mira-event-list {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .mira-event-list {
+        grid-template-columns: 1fr;
+    }
+    
+    .event-logo img {
+        max-width: 200px;
+    }
+}
+
+/* No events message */
+.mira-event-list p {
+    grid-column: 1 / -1;
+    text-align: center;
+    font-style: italic;
+    color: #666;
+    margin: 20px 0;
+}
