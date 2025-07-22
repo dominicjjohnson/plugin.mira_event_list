@@ -232,7 +232,11 @@ class MiraEventList {
                     <?php if (has_post_thumbnail()): ?>
                         <div class="event-logo">
                             <?php if ($event_link): ?>
-                                <a href="<?php echo esc_url($event_link); ?>" target="_blank" rel="noopener" class="event-logo-link">
+                                <?php
+                                $open_new_window = get_option('mira_event_open_new_window', '1');
+                                $target_attr = $open_new_window ? 'target="_blank" rel="noopener"' : '';
+                                ?>
+                                <a href="<?php echo esc_url($event_link); ?>" <?php echo $target_attr; ?> class="event-logo-link">
                                     <?php the_post_thumbnail('event-logo', array('alt' => get_the_title())); ?>
                                 </a>
                             <?php else: ?>
@@ -259,11 +263,12 @@ class MiraEventList {
                                 <?php
                                 $button_text = get_option('mira_event_button_text', 'Goto Event');
                                 $button_color = get_option('mira_event_button_color', '#28a745');
+                                $open_new_window = get_option('mira_event_open_new_window', '1');
+                                $target_attr = $open_new_window ? 'target="_blank" rel="noopener"' : '';
                                 ?>
                                 <a href="<?php echo esc_url($event_link); ?>" 
                                    class="goto-event-btn-bottom" 
-                                   target="_blank" 
-                                   rel="noopener"
+                                   <?php echo $target_attr; ?>
                                    style="background-color: <?php echo esc_attr($button_color); ?>;">
                                     <?php echo esc_html($button_text); ?>
                                 </a>
@@ -299,6 +304,7 @@ class MiraEventList {
     public function settings_init() {
         register_setting('mira_event_settings', 'mira_event_button_text');
         register_setting('mira_event_settings', 'mira_event_button_color');
+        register_setting('mira_event_settings', 'mira_event_open_new_window');
         
         add_settings_section(
             'mira_event_settings_section',
@@ -319,6 +325,14 @@ class MiraEventList {
             'mira_event_button_color',
             __('Button Color', 'mira-event-list'),
             array($this, 'button_color_render'),
+            'mira_event_settings',
+            'mira_event_settings_section'
+        );
+        
+        add_settings_field(
+            'mira_event_open_new_window',
+            __('Open in New Window', 'mira-event-list'),
+            array($this, 'open_new_window_render'),
             'mira_event_settings',
             'mira_event_settings_section'
         );
@@ -343,6 +357,17 @@ class MiraEventList {
         ?>
         <input type="color" name="mira_event_button_color" value="<?php echo esc_attr($value); ?>" />
         <p class="description"><?php _e('Background color for the event button', 'mira-event-list'); ?></p>
+        <?php
+    }
+    
+    /**
+     * Open new window checkbox field
+     */
+    public function open_new_window_render() {
+        $value = get_option('mira_event_open_new_window', '1'); // Default to checked (new window)
+        ?>
+        <input type="checkbox" name="mira_event_open_new_window" value="1" <?php checked($value, '1'); ?> />
+        <p class="description"><?php _e('Check to open event links in a new window/tab. Uncheck to open in the same window.', 'mira-event-list'); ?></p>
         <?php
     }
     
