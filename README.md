@@ -68,6 +68,22 @@ The plugin includes default CSS styling with a responsive grid layout. You can c
 - `.goto-event-btn-bottom` - "Goto Event" button (bottom-aligned)
 - `.event-goto-button-bottom` - Container for the bottom button
 
+## Development Notes
+
+**Version 1.0 - 22nd July 2025**
+
+This plugin was developed to create an event list similar to: https://www.amg-world.co.uk/our-events/
+
+Key functionality implemented:
+1. ✅ Date order - next event first
+2. ✅ Once an event date has passed, remove it from the list
+3. ✅ Fields for each event: Event name, Event Logo, Event date, Link to more details
+4. ✅ Front end display: Logo (250px wide x auto), clickable logos and buttons
+5. ✅ Admin screens for editing CPT events
+6. ✅ Shortcode `[mira_event_list]`
+7. ✅ Responsive grid layout (3/2/1 columns)
+8. ✅ Admin settings for button customization
+
 ## Requirements
 
 - WordPress 4.0 or higher
