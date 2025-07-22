@@ -23,12 +23,18 @@
     margin-bottom: 15px;
     text-align: center;
     flex-shrink: 0;
+    height: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .event-logo img {
     max-width: 250px;
     width: 100%;
     height: auto;
+    max-height: 140px;
+    object-fit: contain;
     border-radius: 4px;
     transition: opacity 0.3s ease, transform 0.2s ease;
 }
@@ -51,22 +57,45 @@
 }
 
 .event-date {
-    margin-bottom: 15px;
+    margin-bottom: 6px;
     color: #666;
-    font-size: 1em;
+    font-size: 0.8em;
     flex-shrink: 0;
+    line-height: 1.2;
+    text-align: center;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .event-date strong {
     color: #333;
+    font-weight: 600;
+}
+
+.event-location {
+    margin-bottom: 10px;
+    color: #777;
+    font-size: 0.75em;
+    flex-shrink: 0;
+    line-height: 1.2;
+    font-style: italic;
+    text-align: center;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .event-excerpt {
     margin-bottom: 15px;
-    line-height: 1.6;
+    line-height: 1.4;
     color: #555;
+    font-size: 0.8em;
     flex: 1;
     overflow: hidden;
+    text-align: center;
 }
 
 .event-goto-button-bottom {

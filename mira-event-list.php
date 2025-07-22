@@ -103,6 +103,7 @@ class MiraEventList {
         // Get saved values
         $event_date = get_post_meta($post->ID, '_event_date', true);
         $event_link = get_post_meta($post->ID, '_event_link', true);
+        $event_location = get_post_meta($post->ID, '_event_location', true);
         
         ?>
         <table class="form-table">
@@ -111,6 +112,13 @@ class MiraEventList {
                 <td>
                     <input type="date" id="event_date" name="event_date" value="<?php echo esc_attr($event_date); ?>" />
                     <p class="description"><?php _e('Select the event date', 'mira-event-list'); ?></p>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="event_location"><?php _e('Event Location', 'mira-event-list'); ?></label></th>
+                <td>
+                    <input type="text" id="event_location" name="event_location" value="<?php echo esc_attr($event_location); ?>" class="large-text" />
+                    <p class="description"><?php _e('Enter the location of the event (e.g., New York City, Online, Convention Center)', 'mira-event-list'); ?></p>
                 </td>
             </tr>
             <tr>
@@ -152,6 +160,11 @@ class MiraEventList {
         // Save event date
         if (isset($_POST['event_date'])) {
             update_post_meta($post_id, '_event_date', sanitize_text_field($_POST['event_date']));
+        }
+        
+        // Save event location
+        if (isset($_POST['event_location'])) {
+            update_post_meta($post_id, '_event_location', sanitize_text_field($_POST['event_location']));
         }
         
         // Save event link
@@ -226,7 +239,8 @@ class MiraEventList {
                 <?php
                 $event_date = get_post_meta(get_the_ID(), '_event_date', true);
                 $event_link = get_post_meta(get_the_ID(), '_event_link', true);
-                $formatted_date = $event_date ? date('F j, Y', strtotime($event_date)) : '';
+                $event_location = get_post_meta(get_the_ID(), '_event_location', true);
+                $formatted_date = $event_date ? date('j F Y', strtotime($event_date)) : '';
                 ?>
                 <div class="mira-event-item">
                     <?php if (has_post_thumbnail()): ?>
@@ -248,7 +262,13 @@ class MiraEventList {
                     <div class="event-content">
                         <?php if ($formatted_date): ?>
                             <div class="event-date">
-                                <strong><?php _e('Date:', 'mira-event-list'); ?></strong> <?php echo esc_html($formatted_date); ?>
+                                <strong><?php echo esc_html($formatted_date); ?></strong>
+                            </div>
+                        <?php endif; ?>
+                        
+                        <?php if ($event_location): ?>
+                            <div class="event-location">
+                                <?php echo esc_html($event_location); ?>
                             </div>
                         <?php endif; ?>
                         
