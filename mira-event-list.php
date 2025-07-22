@@ -351,6 +351,7 @@ class MiraEventList {
      */
     public function settings_section_callback() {
         echo '<p>' . __('Customize the appearance and text of the event buttons.', 'mira-event-list') . '</p>';
+        echo '<p>' . __('You can use the shortcode [mira_event_list] to display the event list.', 'mira-event-list') . '</p>';
     }
     
     /**
