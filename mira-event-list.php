@@ -101,9 +101,10 @@ class MiraEventList {
         wp_nonce_field(basename(__FILE__), 'event_nonce');
         
         // Get saved values
-        $event_date = get_post_meta($post->ID, '_event_date', true);
-        $event_link = get_post_meta($post->ID, '_event_link', true);
-        $event_location = get_post_meta($post->ID, '_event_location', true);
+    $event_date = get_post_meta($post->ID, '_event_date', true);
+    $event_link = get_post_meta($post->ID, '_event_link', true);
+    $event_location = get_post_meta($post->ID, '_event_location', true);
+    $display_date = get_post_meta($post->ID, '_display_date', true);
         
         ?>
         <table class="form-table">
@@ -112,6 +113,13 @@ class MiraEventList {
                 <td>
                     <input type="date" id="event_date" name="event_date" value="<?php echo esc_attr($event_date); ?>" />
                     <p class="description"><?php _e('Select the event date', 'mira-event-list'); ?></p>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="display_date"><?php _e('Display Date', 'mira-event-list'); ?></label></th>
+                <td>
+                    <input type="text" id="display_date" name="display_date" value="<?php echo esc_attr($display_date); ?>" class="large-text" />
+                    <p class="description"><?php _e('Enter a custom display date (e.g., "Summer 2025", "13 August 2025"). If left blank, the event date will be shown.', 'mira-event-list'); ?></p>
                 </td>
             </tr>
             <tr>
@@ -160,6 +168,10 @@ class MiraEventList {
         // Save event date
         if (isset($_POST['event_date'])) {
             update_post_meta($post_id, '_event_date', sanitize_text_field($_POST['event_date']));
+        }
+        // Save display date
+        if (isset($_POST['display_date'])) {
+            update_post_meta($post_id, '_display_date', sanitize_text_field($_POST['display_date']));
         }
         
         // Save event location
@@ -240,6 +252,7 @@ class MiraEventList {
                 $event_date = get_post_meta(get_the_ID(), '_event_date', true);
                 $event_link = get_post_meta(get_the_ID(), '_event_link', true);
                 $event_location = get_post_meta(get_the_ID(), '_event_location', true);
+                $display_date = get_post_meta(get_the_ID(), '_display_date', true);
                 $formatted_date = $event_date ? date('j F Y', strtotime($event_date)) : '';
                 ?>
                 <div class="mira-event-item">
@@ -260,7 +273,11 @@ class MiraEventList {
                     <?php endif; ?>
                     
                     <div class="event-content">
-                        <?php if ($formatted_date): ?>
+                        <?php if ($display_date): ?>
+                            <div class="event-date">
+                                <strong><?php echo esc_html($display_date); ?></strong>
+                            </div>
+                        <?php elseif ($formatted_date): ?>
                             <div class="event-date">
                                 <strong><?php echo esc_html($formatted_date); ?></strong>
                             </div>

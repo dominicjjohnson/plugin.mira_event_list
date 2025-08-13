@@ -54,12 +54,13 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+    font-size: 20px;
 }
 
 .event-date {
     margin-bottom: 6px;
     color: #666;
-    font-size: 0.8em;
+    font-size: 1em;
     flex-shrink: 0;
     line-height: 1.2;
     text-align: center;
@@ -71,13 +72,14 @@
 
 .event-date strong {
     color: #333;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 .event-location {
     margin-bottom: 10px;
     color: #777;
-    font-size: 0.75em;
+    font-size: 22px
+    font-weight: 700;
     flex-shrink: 0;
     line-height: 1.2;
     font-style: italic;
