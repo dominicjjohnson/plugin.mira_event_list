@@ -300,13 +300,14 @@ class MiraEventList {
                                 <?php
                                 $button_text = get_option('mira_event_button_text', 'Goto Event');
                                 $button_color = get_option('mira_event_button_color', '#28a745');
+                                $button_text_color = get_option('mira_event_button_text_color', '#fff');
                                 $open_new_window = get_option('mira_event_open_new_window', '1');
                                 $target_attr = $open_new_window ? 'target="_blank" rel="noopener"' : '';
                                 ?>
                                 <a href="<?php echo esc_url($event_link); ?>" 
                                    class="goto-event-btn-bottom" 
                                    <?php echo $target_attr; ?>
-                                   style="background-color: <?php echo esc_attr($button_color); ?>;">
+                                   style="background-color: <?php echo esc_attr($button_color); ?>; color: <?php echo esc_attr($button_text_color); ?>;">
                                     <?php echo esc_html($button_text); ?>
                                 </a>
                             <?php endif; ?>
@@ -339,9 +340,10 @@ class MiraEventList {
      * Initialize settings
      */
     public function settings_init() {
-        register_setting('mira_event_settings', 'mira_event_button_text');
-        register_setting('mira_event_settings', 'mira_event_button_color');
-        register_setting('mira_event_settings', 'mira_event_open_new_window');
+    register_setting('mira_event_settings', 'mira_event_button_text');
+    register_setting('mira_event_settings', 'mira_event_button_color');
+    register_setting('mira_event_settings', 'mira_event_button_text_color');
+    register_setting('mira_event_settings', 'mira_event_open_new_window');
         
         add_settings_section(
             'mira_event_settings_section',
@@ -365,7 +367,14 @@ class MiraEventList {
             'mira_event_settings',
             'mira_event_settings_section'
         );
-        
+
+        add_settings_field(
+            'mira_event_button_text_color',
+            __('Button Text Color', 'mira-event-list'),
+            array($this, 'button_text_color_render'),
+            'mira_event_settings',
+            'mira_event_settings_section'
+        );
         add_settings_field(
             'mira_event_open_new_window',
             __('Open in New Window', 'mira-event-list'),
@@ -373,6 +382,17 @@ class MiraEventList {
             'mira_event_settings',
             'mira_event_settings_section'
         );
+    }
+
+    /**
+     * Button text color field
+     */
+    public function button_text_color_render() {
+        $value = get_option('mira_event_button_text_color', '#fff');
+        ?>
+        <input type="color" name="mira_event_button_text_color" value="<?php echo esc_attr($value); ?>" />
+        <p class="description"><?php _e('Text color for the event button', 'mira-event-list'); ?></p>
+        <?php
     }
     
     /**

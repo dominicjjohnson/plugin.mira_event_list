@@ -113,7 +113,7 @@
 .goto-event-btn-bottom {
     display: inline-block;
     padding: 12px 24px;
-    color: #fff;
+    /* color removed, now set inline via PHP */
     text-decoration: none;
     border-radius: 4px;
     font-size: 16px;
@@ -125,7 +125,8 @@
 }
 
 .goto-event-btn-bottom:hover {
-    color: #fff;
+    color: #fff; /* No color change */
+    font-weight: 700; /* Make text bold on hover */
     text-decoration: none;
     opacity: 0.9;
     transform: translateY(-1px);
