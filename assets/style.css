@@ -132,6 +132,35 @@
     transform: translateY(-1px);
 }
 
+.event-title {
+    height: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: #f8f8f8;
+    border-radius: 8px;
+    font-size: 1.2em;
+    overflow: hidden;
+    color: black;
+    margin-bottom: 24px;
+}
+.event-title:hover {
+    background: #fafafa;
+}   
+
+.event-title a {
+    color: black;
+    text-decoration: none;
+}
+.event-title a:visited {
+    color: black;
+}
+.event-title a:hover {
+    color: #111111;
+}
+
+
 /* Responsive design */
 @media (max-width: 1200px) {
     .mira-event-list {
