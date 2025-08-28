@@ -3,11 +3,12 @@
  * Plugin Name: Mira Event List
  * Plugin URI: https://github.com/dominicjjohnson/plugin.mira_event_list
  * Description: A WordPress plugin to manage events with custom post type and display them via shortcode.
- * Version: 1.0.1
+ * Version: 1.0.3
  * Author: Miramedia / Dominic Johnson
  * Author URI: https://about.me/dominicjjohnson
  * License: GPL v2 or later
  * Text Domain: mira-event-list
+ * v 1.0.2 - if there is no logo, display the title
  */
 
 // Prevent direct access
@@ -191,7 +192,7 @@ class MiraEventList {
     public function enqueue_scripts() {
         // Use filemtime() for cache busting during development
         $css_file = plugin_dir_path(__FILE__) . 'assets/style.css';
-        $version = file_exists($css_file) ? filemtime($css_file) : '1.0.0';
+        $version = file_exists($css_file) ? filemtime($css_file) : '1.0.3';
         
         wp_enqueue_style('mira-event-list-style', plugin_dir_url(__FILE__) . 'assets/style.css', array(), $version);
     }
@@ -230,11 +231,12 @@ class MiraEventList {
             'orderby' => 'meta_value',
             'order' => 'ASC',
             'meta_query' => array(
-                array(
-                    'key' => '_event_date',
-                    'value' => $current_date,
-                    'compare' => '>='
-                )
+            array(
+                'key' => '_event_date',
+                'value' => $current_date,
+                'compare' => '>=', // Includes today and future dates
+                'type' => 'DATE'
+            )
             )
         );
         
@@ -268,6 +270,20 @@ class MiraEventList {
                                 </a>
                             <?php else: ?>
                                 <?php the_post_thumbnail('event-logo', array('alt' => get_the_title())); ?>
+                            <?php endif; ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="event-title">
+                            <?php if ($event_link): ?>
+                                <?php
+                                $open_new_window = get_option('mira_event_open_new_window', '1');
+                                $target_attr = $open_new_window ? 'target="_blank" rel="noopener"' : '';
+                                ?>
+                                <a href="<?php echo esc_url($event_link); ?>" <?php echo $target_attr; ?> class="event-title-link">
+                                    <?php the_title(); ?>
+                                </a>
+                            <?php else: ?>
+                                <?php the_title(); ?>
                             <?php endif; ?>
                         </div>
                     <?php endif; ?>
