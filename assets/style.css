@@ -63,7 +63,7 @@
 .event-date {
     margin-bottom: 6px;
     color: #666;
-    font-size: 1em;
+    font-size: 14px;
     flex-shrink: 0;
     line-height: 1.2;
     text-align: center;
@@ -81,7 +81,7 @@
 .event-location {
     margin-bottom: 10px;
     color: #777;
-    font-size: 22px
+    font-size: 14px;
     font-weight: 700;
     flex-shrink: 0;
     line-height: 1.2;
