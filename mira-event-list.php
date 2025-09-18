@@ -192,7 +192,7 @@ class MiraEventList {
     public function enqueue_scripts() {
         // Use filemtime() for cache busting during development
         $css_file = plugin_dir_path(__FILE__) . 'assets/style.css';
-        $version = file_exists($css_file) ? filemtime($css_file) : '1.0.3';
+        $version = file_exists($css_file) ? filemtime($css_file) : '1.0.4';
         
         wp_enqueue_style('mira-event-list-style', plugin_dir_url(__FILE__) . 'assets/style.css', array(), $version);
     }
