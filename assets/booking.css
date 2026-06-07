@@ -1,0 +1,306 @@
+/* ── Booking form (event card) ─────────────────────────────────────── */
+
+.mira-booking-form {
+    margin-top: auto;
+    padding-top: 12px;
+}
+
+.mira-booking-fields {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.mira-qty-wrap,
+.mira-donation-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-width: 90px;
+}
+
+.mira-qty-wrap label,
+.mira-donation-wrap label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+}
+
+.mira-qty-select,
+.mira-donation-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    background: #fff;
+    box-sizing: border-box;
+    color: #333;
+}
+
+.mira-qty-select:focus,
+.mira-donation-input:focus {
+    outline: none;
+    border-color: #888;
+    box-shadow: 0 0 0 2px rgba(0,0,0,.08);
+}
+
+.mira-book-btn {
+    display: block;
+    width: 100%;
+    padding: 11px 16px;
+    border: none;
+    border-radius: 4px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    transition: opacity .15s ease, transform .1s ease;
+    letter-spacing: .2px;
+}
+
+.mira-book-btn:hover:not(:disabled) {
+    opacity: .88;
+    transform: translateY(-1px);
+}
+
+.mira-book-btn:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+}
+
+.mira-booking-error {
+    margin-top: 8px;
+    font-size: 13px;
+    color: #c0392b;
+    min-height: 18px;
+}
+
+/* ── Success page ──────────────────────────────────────────────────── */
+
+.mira-success-page {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 20px 0 40px;
+}
+
+.mira-success-header {
+    text-align: center;
+    margin-bottom: 36px;
+}
+
+.mira-success-icon,
+.mira-confirmed-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #27ae60;
+    color: #fff;
+    font-size: 26px;
+    margin-bottom: 16px;
+}
+
+.mira-success-header h2 {
+    margin: 0 0 12px;
+    font-size: 26px;
+}
+
+.mira-success-header p {
+    margin: 0 0 8px;
+    font-size: 16px;
+    color: #444;
+}
+
+.mira-success-sub {
+    color: #666 !important;
+    font-size: 14px !important;
+}
+
+/* Attendee rows */
+
+.mira-attendee-row {
+    background: #f9f9f9;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+.mira-attendee-heading {
+    margin: 0 0 14px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #333;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.mira-field-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+@media (max-width: 540px) {
+    .mira-field-pair {
+        grid-template-columns: 1fr;
+    }
+}
+
+.mira-field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.mira-field-group label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #555;
+}
+
+.mira-required {
+    color: #c0392b;
+}
+
+.mira-field-group input[type="text"],
+.mira-field-group input[type="email"] {
+    padding: 9px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 15px;
+    width: 100%;
+    box-sizing: border-box;
+    color: #333;
+    background: #fff;
+}
+
+.mira-field-group input:focus {
+    outline: none;
+    border-color: #888;
+    box-shadow: 0 0 0 2px rgba(0,0,0,.08);
+}
+
+/* Form footer */
+
+.mira-form-footer {
+    margin-top: 24px;
+    text-align: center;
+}
+
+.mira-submit-btn {
+    display: inline-block;
+    padding: 13px 40px;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity .15s ease, transform .1s ease;
+    letter-spacing: .2px;
+}
+
+.mira-submit-btn:hover:not(:disabled) {
+    opacity: .88;
+    transform: translateY(-1px);
+}
+
+.mira-submit-btn:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+}
+
+.mira-form-message {
+    margin: 12px 0 0;
+    font-size: 14px;
+    color: #c0392b;
+    min-height: 20px;
+}
+
+/* ── Confirmation / tickets-sent states ────────────────────────────── */
+
+.mira-booking-confirmed,
+.mira-tickets-sent {
+    max-width: 560px;
+    margin: 40px auto;
+    text-align: center;
+    padding: 40px 24px;
+    background: #f9f9f9;
+    border: 1px solid #e8e8e8;
+    border-radius: 8px;
+}
+
+.mira-booking-confirmed h2,
+.mira-tickets-sent h3 {
+    margin: 0 0 12px;
+    font-size: 24px;
+    color: #222;
+}
+
+.mira-booking-confirmed p,
+.mira-tickets-sent p {
+    color: #555;
+    font-size: 15px;
+    margin: 0 0 10px;
+}
+
+.mira-confirmed-list {
+    list-style: none;
+    padding: 0;
+    margin: 16px 0 0;
+    text-align: left;
+}
+
+.mira-confirmed-list li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
+    font-size: 14px;
+}
+
+.mira-confirmed-list li:last-child {
+    border-bottom: none;
+}
+
+.mira-confirmed-name {
+    font-weight: 600;
+    color: #333;
+    flex: 1;
+    min-width: 120px;
+}
+
+.mira-confirmed-email {
+    color: #666;
+    flex: 1;
+    min-width: 160px;
+}
+
+.mira-confirmed-ticket {
+    font-family: monospace;
+    font-size: 13px;
+    color: #444;
+    background: #eee;
+    padding: 2px 8px;
+    border-radius: 3px;
+}
+
+/* General notice */
+.mira-notice {
+    padding: 14px 18px;
+    background: #fff8e1;
+    border-left: 4px solid #f9a825;
+    border-radius: 4px;
+    color: #555;
+    font-size: 15px;
+}

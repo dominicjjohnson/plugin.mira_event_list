@@ -1,0 +1,170 @@
+/* ── Single event: extras appended via the_content ─────────────────── */
+
+.mira-event-detail-extras {
+    margin-top: 48px;
+}
+
+.mira-event-charities,
+.mira-event-people {
+    margin-bottom: 48px;
+}
+
+.mira-event-charities h3,
+.mira-event-people h3 {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0 0 20px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #eee;
+    color: #222;
+}
+
+/* ── Charity grid ───────────────────────────────────────────────────── */
+
+.mira-charity-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    align-items: center;
+}
+
+.mira-charity-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.mira-charity-logo img {
+    max-width: 100px;
+    height: auto;
+    border-radius: 4px;
+    display: block;
+}
+
+.mira-charity-label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #999;
+    margin-bottom: 4px;
+}
+
+.mira-charity-info h4 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.mira-charity-info h4 a {
+    text-decoration: none;
+    color: inherit;
+}
+
+.mira-charity-info h4 a:hover {
+    opacity: .75;
+}
+
+/* ── People grid ────────────────────────────────────────────────────── */
+
+.mira-people-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 28px;
+}
+
+.mira-person-item {
+    text-align: center;
+}
+
+.mira-person-photo img {
+    width: 100%;
+    border-radius: 8px;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    display: block;
+}
+
+.mira-person-role {
+    display: inline-block;
+    background: #f0f0f0;
+    color: #555;
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin: 10px 0 6px;
+}
+
+.mira-person-info h4 {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #222;
+}
+
+.mira-person-title {
+    margin: 0;
+    font-size: 13px;
+    color: #888;
+}
+
+/* ── Booking section on single page ─────────────────────────────────── */
+
+.mira-event-booking-section {
+    max-width: 420px;
+    margin: 40px auto 0;
+    padding-top: 32px;
+    border-top: 2px solid #eee;
+}
+
+.mira-event-link-btn {
+    display: inline-block;
+    padding: 12px 28px;
+    border-radius: 4px;
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: opacity .15s ease;
+}
+
+.mira-event-link-btn:hover {
+    opacity: .88;
+}
+
+/* ── [mira_next_event] shortcode ────────────────────────────────────── */
+
+.mira-next-event {
+    text-align: center;
+}
+
+.mira-next-event-label {
+    display: block;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #888;
+    margin-bottom: 12px;
+}
+
+.mira-next-event-banner {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 8px;
+    margin: 0 0 16px;
+}
+
+.mira-next-event-title {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.mira-next-event-title a {
+    text-decoration: none;
+    color: inherit;
+}
+
+.mira-next-event-title a:hover {
+    opacity: .75;
+}
