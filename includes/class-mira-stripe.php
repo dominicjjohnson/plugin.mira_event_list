@@ -56,6 +56,7 @@ class MiraStripe {
 
         $body = array(
             'mode'        => 'payment',
+            'submit_type' => 'book',
             'success_url' => $success_url,
             'cancel_url'  => $cancel_url,
             'line_items'  => $line_items,

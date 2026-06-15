@@ -424,7 +424,8 @@ class MiraEventList {
                     <form class="mira-booking-form"
                           data-event-id="<?php echo esc_attr( $post_id ); ?>"
                           data-ajax-url="<?php echo esc_url( $ajax_url ); ?>"
-                          data-nonce="<?php echo esc_attr( wp_create_nonce( 'mira_booking_nonce' ) ); ?>">
+                          data-nonce="<?php echo esc_attr( wp_create_nonce( 'mira_booking_nonce' ) ); ?>"
+                          data-ticket-price="<?php echo esc_attr( $ticket_price ); ?>">
                         <div class="mira-booking-fields">
                             <div class="mira-qty-wrap">
                                 <label><?php esc_html_e( 'Tickets', 'mira-event-list' ); ?></label>
@@ -441,11 +442,16 @@ class MiraEventList {
                                 </div>
                             <?php endif; ?>
                         </div>
+                        <div class="mira-booking-total">Total: <strong class="mira-total-amount">£<?php echo number_format( $ticket_price, 2 ); ?></strong></div>
                         <button type="submit" class="mira-book-btn"
                                 data-label="<?php echo esc_attr( $btn_label ); ?>"
                                 style="background-color:<?php echo esc_attr( $button_color ); ?>;color:<?php echo esc_attr( $button_text_color ); ?>;">
                             <?php echo esc_html( $btn_label ); ?>
                         </button>
+                        <div class="mira-stripe-badge">
+                            <svg width="11" height="13" viewBox="0 0 12 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M6 0C4.07 0 2.5 1.57 2.5 3.5V5H1.5A1.5 1.5 0 000 6.5v6A1.5 1.5 0 001.5 14h9A1.5 1.5 0 0012 12.5v-6A1.5 1.5 0 0010.5 5H9.5V3.5C9.5 1.57 7.93 0 6 0zm0 1.5c1.1 0 2 .9 2 2V5H4V3.5c0-1.1.9-2 2-2z" fill="currentColor"/></svg>
+                            Secured by <span class="mira-stripe-wordmark">Stripe</span>
+                        </div>
                         <div class="mira-booking-error" role="alert"></div>
                         <p class="mira-booking-note">You will be redirected to the Stripe credit card system to take payment. Once paid, you'll be redirected back here so we can email out your tickets. Any problems please email <a href="mailto:twcomedy@miramedia.co.uk">twcomedy@miramedia.co.uk</a>. Thanks so much for your support — we look forward to seeing you!</p>
                     </form>
@@ -516,7 +522,8 @@ class MiraEventList {
                 <form class="mira-booking-form"
                       data-event-id="<?php echo esc_attr( $post_id ); ?>"
                       data-ajax-url="<?php echo esc_url( $ajax_url ); ?>"
-                      data-nonce="<?php echo esc_attr( wp_create_nonce( 'mira_booking_nonce' ) ); ?>">
+                      data-nonce="<?php echo esc_attr( wp_create_nonce( 'mira_booking_nonce' ) ); ?>"
+                      data-ticket-price="<?php echo esc_attr( $ticket_price ); ?>">
                     <div class="mira-booking-fields">
                         <div class="mira-qty-wrap">
                             <label><?php esc_html_e( 'Tickets', 'mira-event-list' ); ?></label>
@@ -533,12 +540,17 @@ class MiraEventList {
                             </div>
                         <?php endif; ?>
                     </div>
+                    <div class="mira-booking-total">Total: <strong class="mira-total-amount">£<?php echo number_format( $ticket_price, 2 ); ?></strong></div>
                     <button type="submit"
                             class="mira-book-btn"
                             data-label="<?php echo esc_attr( $btn_label ); ?>"
                             style="background-color:<?php echo esc_attr( $button_color ); ?>;color:<?php echo esc_attr( $button_text_color ); ?>;">
                         <?php echo esc_html( $btn_label ); ?>
                     </button>
+                    <div class="mira-stripe-badge">
+                        <svg width="11" height="13" viewBox="0 0 12 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M6 0C4.07 0 2.5 1.57 2.5 3.5V5H1.5A1.5 1.5 0 000 6.5v6A1.5 1.5 0 001.5 14h9A1.5 1.5 0 0012 12.5v-6A1.5 1.5 0 0010.5 5H9.5V3.5C9.5 1.57 7.93 0 6 0zm0 1.5c1.1 0 2 .9 2 2V5H4V3.5c0-1.1.9-2 2-2z" fill="currentColor"/></svg>
+                        Secured by <span class="mira-stripe-wordmark">Stripe</span>
+                    </div>
                     <div class="mira-booking-error" role="alert"></div>
                     <p class="mira-booking-note">You will be redirected to the Stripe credit card system to take payment. Once paid, you'll be redirected back here so we can email out your tickets. Any problems please email <a href="mailto:twcomedy@miramedia.co.uk">twcomedy@miramedia.co.uk</a>. Thanks so much for your support — we look forward to seeing you!</p>
                 </form>
@@ -702,7 +714,8 @@ class MiraEventList {
                                 <form class="mira-booking-form"
                                       data-event-id="<?php echo esc_attr( $post_id ); ?>"
                                       data-ajax-url="<?php echo esc_url( $ajax_url ); ?>"
-                                      data-nonce="<?php echo esc_attr( wp_create_nonce( 'mira_booking_nonce' ) ); ?>">
+                                      data-nonce="<?php echo esc_attr( wp_create_nonce( 'mira_booking_nonce' ) ); ?>"
+                                      data-ticket-price="<?php echo esc_attr( $ticket_price ); ?>">
 
                                     <div class="mira-booking-fields">
                                         <div class="mira-qty-wrap">
@@ -727,12 +740,17 @@ class MiraEventList {
                                         <?php endif; ?>
                                     </div>
 
+                                    <div class="mira-booking-total">Total: <strong class="mira-total-amount">£<?php echo number_format( $ticket_price, 2 ); ?></strong></div>
                                     <button type="submit"
                                             class="mira-book-btn"
                                             data-label="<?php echo esc_attr( $btn_label ); ?>"
                                             style="background-color:<?php echo esc_attr( $button_color ); ?>;color:<?php echo esc_attr( $button_text_color ); ?>;">
                                         <?php echo esc_html( $btn_label ); ?>
                                     </button>
+                                    <div class="mira-stripe-badge">
+                                        <svg width="11" height="13" viewBox="0 0 12 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M6 0C4.07 0 2.5 1.57 2.5 3.5V5H1.5A1.5 1.5 0 000 6.5v6A1.5 1.5 0 001.5 14h9A1.5 1.5 0 0012 12.5v-6A1.5 1.5 0 0010.5 5H9.5V3.5C9.5 1.57 7.93 0 6 0zm0 1.5c1.1 0 2 .9 2 2V5H4V3.5c0-1.1.9-2 2-2z" fill="currentColor"/></svg>
+                                        Secured by <span class="mira-stripe-wordmark">Stripe</span>
+                                    </div>
                                     <div class="mira-booking-error" role="alert"></div>
                                     <p class="mira-booking-note">You will be redirected to the Stripe credit card system to take payment. Once paid, you'll be redirected back here so we can email out your tickets. Any problems please email <a href="mailto:twcomedy@miramedia.co.uk">twcomedy@miramedia.co.uk</a>. Thanks so much for your support — we look forward to seeing you!</p>
                                 </form>

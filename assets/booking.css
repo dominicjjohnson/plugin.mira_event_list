@@ -81,6 +81,31 @@
     min-height: 18px;
 }
 
+.mira-booking-total {
+    margin-bottom: 10px;
+    font-size: 14px;
+    color: #333;
+}
+
+.mira-total-amount {
+    font-size: 16px;
+}
+
+.mira-stripe-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    margin-top: 8px;
+    font-size: 12px;
+    color: #999;
+}
+
+.mira-stripe-wordmark {
+    color: #635BFF;
+    font-weight: 700;
+}
+
 .mira-booking-note {
     margin-top: 12px;
     font-size: 13px;

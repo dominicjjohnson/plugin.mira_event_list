@@ -44,6 +44,23 @@
             });
         });
 
+        // ── Live total update ────────────────────────────────────────────
+        function updateTotal(form) {
+            var el = form.querySelector('.mira-total-amount');
+            if (!el) return;
+            var price    = parseFloat(form.dataset.ticketPrice) || 0;
+            var qty      = parseInt(form.querySelector('[name="quantity"]').value, 10) || 1;
+            var donInput = form.querySelector('[name="donation"]');
+            var donation = donInput ? (parseFloat(donInput.value) || 0) : 0;
+            el.textContent = '£' + ((price * qty) + donation).toFixed(2);
+        }
+
+        document.querySelectorAll('.mira-booking-form').forEach(function (form) {
+            form.querySelector('[name="quantity"]').addEventListener('change', function () { updateTotal(form); });
+            var don = form.querySelector('[name="donation"]');
+            if (don) don.addEventListener('input', function () { updateTotal(form); });
+        });
+
         // ── Attendee form on success / booking-complete page ─────────────
         var af = document.getElementById('mira-attendees-form');
         if (!af) return;
