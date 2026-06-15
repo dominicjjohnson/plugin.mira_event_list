@@ -81,6 +81,17 @@
     min-height: 18px;
 }
 
+.mira-booking-note {
+    margin-top: 12px;
+    font-size: 13px;
+    color: #555;
+    line-height: 1.5;
+}
+
+.mira-booking-note a {
+    color: inherit;
+}
+
 /* ── Success page ──────────────────────────────────────────────────── */
 
 .mira-success-page {

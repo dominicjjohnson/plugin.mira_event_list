@@ -20,6 +20,7 @@ require_once MIRA_EVENT_LIST_PATH . 'includes/class-mira-database.php';
 require_once MIRA_EVENT_LIST_PATH . 'includes/class-mira-stripe.php';
 require_once MIRA_EVENT_LIST_PATH . 'includes/class-mira-emails.php';
 require_once MIRA_EVENT_LIST_PATH . 'includes/class-mira-bookings.php';
+require_once MIRA_EVENT_LIST_PATH . 'includes/class-mira-admin-bookings.php';
 
 class MiraEventList {
 
@@ -36,6 +37,7 @@ class MiraEventList {
         add_filter( 'the_content',       array( $this, 'event_detail_content' ) );
 
         new MiraBookings();
+        new MiraAdminBookings();
     }
 
     public function create_event_post_type() {
@@ -445,6 +447,7 @@ class MiraEventList {
                             <?php echo esc_html( $btn_label ); ?>
                         </button>
                         <div class="mira-booking-error" role="alert"></div>
+                        <p class="mira-booking-note">You will be redirected to the Stripe credit card system to take payment. Once paid, you'll be redirected back here so we can email out your tickets. Any problems please email <a href="mailto:twcomedy@miramedia.co.uk">twcomedy@miramedia.co.uk</a>. Thanks so much for your support — we look forward to seeing you!</p>
                     </form>
                 <?php elseif ( $event_link ) : ?>
                     <a href="<?php echo esc_url( $event_link ); ?>"
@@ -537,6 +540,7 @@ class MiraEventList {
                         <?php echo esc_html( $btn_label ); ?>
                     </button>
                     <div class="mira-booking-error" role="alert"></div>
+                    <p class="mira-booking-note">You will be redirected to the Stripe credit card system to take payment. Once paid, you'll be redirected back here so we can email out your tickets. Any problems please email <a href="mailto:twcomedy@miramedia.co.uk">twcomedy@miramedia.co.uk</a>. Thanks so much for your support — we look forward to seeing you!</p>
                 </form>
             <?php endif; ?>
         </div>
@@ -730,6 +734,7 @@ class MiraEventList {
                                         <?php echo esc_html( $btn_label ); ?>
                                     </button>
                                     <div class="mira-booking-error" role="alert"></div>
+                                    <p class="mira-booking-note">You will be redirected to the Stripe credit card system to take payment. Once paid, you'll be redirected back here so we can email out your tickets. Any problems please email <a href="mailto:twcomedy@miramedia.co.uk">twcomedy@miramedia.co.uk</a>. Thanks so much for your support — we look forward to seeing you!</p>
                                 </form>
 
                             <?php elseif ( $event_link ) : ?>
