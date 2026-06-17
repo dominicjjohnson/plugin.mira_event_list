@@ -10,7 +10,7 @@ class MiraStripe {
             : get_option( 'mira_stripe_test_secret', '' );
     }
 
-    public function create_checkout_session( $event_id, $quantity, $donation_pence, $booking_id, $booking_reference ) {
+    public function create_checkout_session( $event_id, $quantity, $donation_pence, $booking_id, $booking_reference, $customer_email = '' ) {
         $secret_key = $this->get_secret_key();
         if ( empty( $secret_key ) ) {
             return new WP_Error( 'no_stripe_key', __( 'Stripe API key not configured.', 'mira-event-list' ) );
@@ -74,6 +74,10 @@ class MiraStripe {
                 ),
             ),
         );
+
+        if ( ! empty( $customer_email ) ) {
+            $body['customer_email'] = $customer_email;
+        }
 
         $response = wp_remote_post( 'https://api.stripe.com/v1/checkout/sessions', array(
             'headers' => array(

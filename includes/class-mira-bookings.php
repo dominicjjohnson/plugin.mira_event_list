@@ -53,9 +53,14 @@ class MiraBookings {
     public function ajax_create_booking() {
         check_ajax_referer( 'mira_booking_nonce', 'nonce' );
 
-        $event_id = intval( $_POST['event_id'] ?? 0 );
-        $quantity = intval( $_POST['quantity'] ?? 0 );
-        $donation = floatval( $_POST['donation'] ?? 0 );
+        $event_id   = intval( $_POST['event_id'] ?? 0 );
+        $quantity   = intval( $_POST['quantity'] ?? 0 );
+        $donation   = floatval( $_POST['donation'] ?? 0 );
+        $lead_email = sanitize_email( $_POST['lead_email'] ?? '' );
+
+        if ( empty( $lead_email ) || ! is_email( $lead_email ) ) {
+            wp_send_json_error( __( 'Please enter a valid email address.', 'mira-event-list' ) );
+        }
 
         if ( ! $event_id || $quantity < 1 || $quantity > 10 ) {
             wp_send_json_error( __( 'Invalid booking data.', 'mira-event-list' ) );
@@ -83,12 +88,13 @@ class MiraBookings {
         $inserted = $wpdb->insert( $bookings_table, array(
             'event_id'          => $event_id,
             'booking_reference' => $booking_reference,
+            'lead_email'        => $lead_email,
             'quantity'          => $quantity,
             'ticket_price'      => $ticket_price,
             'donation_amount'   => $donation,
             'total_amount'      => $total,
             'status'            => 'pending',
-        ), array( '%d', '%s', '%d', '%f', '%f', '%f', '%s' ) );
+        ), array( '%d', '%s', '%s', '%d', '%f', '%f', '%f', '%s' ) );
 
         if ( ! $inserted ) {
             wp_send_json_error( __( 'Could not create booking. Please try again.', 'mira-event-list' ) );
@@ -97,7 +103,7 @@ class MiraBookings {
         $booking_id = $wpdb->insert_id;
 
         $session = $this->stripe->create_checkout_session(
-            $event_id, $quantity, $donation_pence, $booking_id, $booking_reference
+            $event_id, $quantity, $donation_pence, $booking_id, $booking_reference, $lead_email
         );
 
         if ( is_wp_error( $session ) ) {

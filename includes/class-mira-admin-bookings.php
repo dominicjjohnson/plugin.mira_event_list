@@ -270,6 +270,8 @@ class MiraAdminBookings {
                             <?php if ( $lead ) : ?>
                                 <?php echo esc_html( $lead->name ); ?><br>
                                 <small><?php echo esc_html( $lead->email ); ?></small>
+                            <?php elseif ( ! empty( $b->lead_email ) ) : ?>
+                                <a href="mailto:<?php echo esc_attr( $b->lead_email ); ?>"><?php echo esc_html( $b->lead_email ); ?></a>
                             <?php else : ?>
                                 <em style="color:#999"><?php esc_html_e( 'Not collected', 'mira-event-list' ); ?></em>
                             <?php endif; ?>
@@ -358,6 +360,12 @@ class MiraAdminBookings {
                     <th><?php esc_html_e( 'Total', 'mira-event-list' ); ?></th>
                     <td><strong>£<?php echo number_format( $booking->total_amount, 2 ); ?></strong></td>
                 </tr>
+                <?php if ( ! empty( $booking->lead_email ) ) : ?>
+                <tr>
+                    <th><?php esc_html_e( 'Contact email', 'mira-event-list' ); ?></th>
+                    <td><a href="mailto:<?php echo esc_attr( $booking->lead_email ); ?>"><?php echo esc_html( $booking->lead_email ); ?></a></td>
+                </tr>
+                <?php endif; ?>
                 <tr>
                     <th><?php esc_html_e( 'Date', 'mira-event-list' ); ?></th>
                     <td><?php echo esc_html( date_i18n( 'd M Y H:i', strtotime( $booking->created_at ) ) ); ?></td>

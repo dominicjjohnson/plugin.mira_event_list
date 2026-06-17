@@ -18,6 +18,7 @@ class MiraDatabase {
             stripe_session_id varchar(255) NOT NULL DEFAULT '',
             stripe_payment_intent varchar(255) NOT NULL DEFAULT '',
             booking_reference varchar(20) NOT NULL,
+            lead_email varchar(255) NOT NULL DEFAULT '',
             quantity smallint(5) UNSIGNED NOT NULL DEFAULT 1,
             ticket_price decimal(10,2) NOT NULL DEFAULT 0.00,
             donation_amount decimal(10,2) NOT NULL DEFAULT 0.00,

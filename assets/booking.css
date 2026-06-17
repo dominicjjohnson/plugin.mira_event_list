@@ -340,3 +340,52 @@
     color: #555;
     font-size: 15px;
 }
+
+/* ── Email capture modal ────────────────────────────────────────────── */
+
+#mira-email-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.55);
+    z-index: 99999;
+    align-items: center;
+    justify-content: center;
+}
+
+#mira-email-modal-box {
+    background: #fff;
+    border-radius: 8px;
+    padding: 32px 28px 24px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.18);
+}
+
+#mira-email-modal-box h3 {
+    margin: 0 0 6px;
+    font-size: 20px;
+}
+
+#mira-email-modal-box p {
+    margin: 0 0 14px;
+    color: #555;
+    font-size: 15px;
+}
+
+#mira-email-input {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 15px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    margin-bottom: 6px;
+}
+
+#mira-email-modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 16px;
+}

@@ -3,46 +3,100 @@
 
     document.addEventListener('DOMContentLoaded', function () {
 
+        // ── Email capture modal ──────────────────────────────────────────
+        var modal = document.createElement('div');
+        modal.id = 'mira-email-modal';
+        modal.innerHTML =
+            '<div id="mira-email-modal-box">' +
+                '<h3>Almost there!</h3>' +
+                '<p>Enter your email so we can send your ticket.</p>' +
+                '<input type="email" id="mira-email-input" placeholder="your@email.com" autocomplete="email">' +
+                '<p id="mira-email-error" class="mira-booking-error"></p>' +
+                '<div id="mira-email-modal-actions">' +
+                    '<button type="button" id="mira-email-cancel" class="button">Cancel</button>' +
+                    '<button type="button" id="mira-email-confirm" class="button button-primary">Continue to payment</button>' +
+                '</div>' +
+            '</div>';
+        document.body.appendChild(modal);
+
+        var pendingForm = null;
+
+        document.getElementById('mira-email-cancel').addEventListener('click', function () {
+            modal.style.display = 'none';
+            pendingForm = null;
+        });
+
+        modal.addEventListener('click', function (e) {
+            if (e.target === modal) {
+                modal.style.display = 'none';
+                pendingForm = null;
+            }
+        });
+
+        document.getElementById('mira-email-confirm').addEventListener('click', function () {
+            var email   = document.getElementById('mira-email-input').value.trim();
+            var errorEl = document.getElementById('mira-email-error');
+            if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                errorEl.textContent = 'Please enter a valid email address.';
+                return;
+            }
+            errorEl.textContent = '';
+            modal.style.display = 'none';
+            submitBooking(pendingForm, email);
+        });
+
+        document.getElementById('mira-email-input').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') document.getElementById('mira-email-confirm').click();
+        });
+
         // ── Booking forms on event cards ─────────────────────────────────
         document.querySelectorAll('.mira-booking-form').forEach(function (form) {
             form.addEventListener('submit', function (e) {
                 e.preventDefault();
-
-                var btn      = form.querySelector('.mira-book-btn');
-                var errorEl  = form.querySelector('.mira-booking-error');
-                var qty      = form.querySelector('[name="quantity"]').value;
-                var donInput = form.querySelector('[name="donation"]');
-                var donation = donInput ? (donInput.value || 0) : 0;
-
-                btn.disabled    = true;
-                btn.textContent = 'Processing…';
-                errorEl.textContent = '';
-
-                var fd = new FormData();
-                fd.append('action',   'mira_create_booking');
-                fd.append('nonce',    form.dataset.nonce);
-                fd.append('event_id', form.dataset.eventId);
-                fd.append('quantity', qty);
-                fd.append('donation', donation);
-
-                fetch(form.dataset.ajaxUrl, { method: 'POST', body: fd })
-                    .then(function (r) { return r.json(); })
-                    .then(function (data) {
-                        if (data.success) {
-                            window.location.href = data.data.url;
-                        } else {
-                            errorEl.textContent = data.data || 'Something went wrong. Please try again.';
-                            btn.disabled    = false;
-                            btn.textContent = btn.dataset.label;
-                        }
-                    })
-                    .catch(function () {
-                        errorEl.textContent = 'Connection error. Please try again.';
-                        btn.disabled    = false;
-                        btn.textContent = btn.dataset.label;
-                    });
+                pendingForm = form;
+                document.getElementById('mira-email-input').value = '';
+                document.getElementById('mira-email-error').textContent = '';
+                modal.style.display = 'flex';
+                document.getElementById('mira-email-input').focus();
             });
         });
+
+        function submitBooking(form, email) {
+            var btn      = form.querySelector('.mira-book-btn');
+            var errorEl  = form.querySelector('.mira-booking-error');
+            var qty      = form.querySelector('[name="quantity"]').value;
+            var donInput = form.querySelector('[name="donation"]');
+            var donation = donInput ? (donInput.value || 0) : 0;
+
+            btn.disabled    = true;
+            btn.textContent = 'Processing…';
+            errorEl.textContent = '';
+
+            var fd = new FormData();
+            fd.append('action',     'mira_create_booking');
+            fd.append('nonce',      form.dataset.nonce);
+            fd.append('event_id',   form.dataset.eventId);
+            fd.append('quantity',   qty);
+            fd.append('donation',   donation);
+            fd.append('lead_email', email);
+
+            fetch(form.dataset.ajaxUrl, { method: 'POST', body: fd })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data.success) {
+                        window.location.href = data.data.url;
+                    } else {
+                        errorEl.textContent = data.data || 'Something went wrong. Please try again.';
+                        btn.disabled    = false;
+                        btn.textContent = btn.dataset.label;
+                    }
+                })
+                .catch(function () {
+                    errorEl.textContent = 'Connection error. Please try again.';
+                    btn.disabled    = false;
+                    btn.textContent = btn.dataset.label;
+                });
+        }
 
         // ── Live total update ────────────────────────────────────────────
         function updateTotal(form) {
