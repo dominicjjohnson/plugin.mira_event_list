@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
 
+    // ── Generic repeater ─────────────────────────────────────────────────
     function initRepeater(listId, addBtnId, rowClass) {
         var list   = document.getElementById(listId);
         var addBtn = document.getElementById(addBtnId);
@@ -19,6 +20,9 @@ document.addEventListener('DOMContentLoaded', function () {
             });
             list.insertBefore(row, template);
             index++;
+            // If the new row has a doc-upload button, wire it up
+            var uploadBtn = row.querySelector('.mira-doc-upload');
+            if (uploadBtn) wireDocUpload(uploadBtn);
         });
 
         list.addEventListener('click', function (e) {
@@ -28,6 +32,34 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    initRepeater('mira-charities-list', 'add-event-charity', 'mira-charity-row');
-    initRepeater('mira-people-list',    'add-event-person',  'mira-person-row');
+    initRepeater('mira-faqs-list',      'add-event-faq',     'mira-faq-row');
+    initRepeater('mira-documents-list', 'add-event-document','mira-doc-row');
+
+    // ── WP media picker for documents ────────────────────────────────────
+    function wireDocUpload(btn) {
+        btn.addEventListener('click', function () {
+            var row      = btn.closest('.mira-doc-row');
+            var idInput  = row.querySelector('.mira-doc-id');
+            var urlInput = row.querySelector('.mira-doc-url');
+            var label    = row.querySelector('.mira-doc-filename');
+
+            var frame = wp.media({
+                title:    'Select Document',
+                button:   { text: 'Use this file' },
+                multiple: false,
+            });
+
+            frame.on('select', function () {
+                var attachment = frame.state().get('selection').first().toJSON();
+                idInput.value  = attachment.id;
+                urlInput.value = attachment.url;
+                if (label) label.textContent = attachment.filename || attachment.url.split('/').pop();
+            });
+
+            frame.open();
+        });
+    }
+
+    // Wire existing document upload buttons
+    document.querySelectorAll('.mira-doc-upload').forEach(wireDocUpload);
 });

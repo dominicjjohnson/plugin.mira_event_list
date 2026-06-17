@@ -1,3 +1,11 @@
+/* ── Single event: description text colour ──────────────────────────── */
+
+.wp-block-post-content p,
+.wp-block-post-content li,
+.wp-block-post-content td {
+    color: #3F60F6;
+}
+
 /* ── Single event: extras appended via the_content ─────────────────── */
 
 .mira-event-detail-extras {

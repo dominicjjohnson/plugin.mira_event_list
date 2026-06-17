@@ -27,6 +27,7 @@ class MiraEventList {
     public function __construct() {
         add_action( 'init',              array( $this, 'create_event_post_type' ) );
         add_action( 'init',              array( $this, 'register_shortcode' ) );
+        add_action( 'init',              array( $this, 'register_meta_fields' ) );
         add_action( 'add_meta_boxes',   array( $this, 'add_event_meta_boxes' ) );
         add_action( 'save_post',        array( $this, 'save_event_meta' ) );
         add_action( 'wp_enqueue_scripts',    array( $this, 'enqueue_scripts' ) );
@@ -35,9 +36,36 @@ class MiraEventList {
         add_action( 'admin_init',       array( $this, 'settings_init' ) );
         add_action( 'after_setup_theme', array( $this, 'add_image_sizes' ) );
         add_filter( 'the_content',       array( $this, 'event_detail_content' ) );
+        add_filter( 'manage_mira_event_posts_columns',       array( $this, 'event_admin_columns' ) );
+        add_action( 'manage_mira_event_posts_custom_column', array( $this, 'event_admin_column_content' ), 10, 2 );
 
         new MiraBookings();
         new MiraAdminBookings();
+    }
+
+    public function register_meta_fields() {
+        $string_fields = array(
+            '_event_date', '_display_date', '_event_location', '_event_link',
+            '_event_registration_url', '_event_registration_cta',
+            '_event_documents', '_event_faqs',
+            '_tickets_enabled', '_ticket_price', '_enable_donation',
+        );
+        foreach ( $string_fields as $key ) {
+            register_post_meta( 'mira_event', $key, array(
+                'show_in_rest'  => true,
+                'single'        => true,
+                'type'          => 'string',
+                'auth_callback' => '__return_true',
+            ) );
+        }
+        foreach ( array( '_event_post_category', '_event_sponsor_type' ) as $key ) {
+            register_post_meta( 'mira_event', $key, array(
+                'show_in_rest'  => true,
+                'single'        => true,
+                'type'          => 'integer',
+                'auth_callback' => '__return_true',
+            ) );
+        }
     }
 
     public function create_event_post_type() {
@@ -63,13 +91,14 @@ class MiraEventList {
             'publicly_queryable' => true,
             'show_ui'            => true,
             'show_in_menu'       => true,
+            'show_in_rest'       => true,
             'query_var'          => true,
             'rewrite'            => array( 'slug' => 'events' ),
             'capability_type'    => 'post',
             'has_archive'        => true,
             'hierarchical'       => false,
             'menu_icon'          => 'dashicons-calendar-alt',
-            'supports'           => array( 'title', 'editor', 'thumbnail', 'excerpt' ),
+            'supports'           => array( 'title', 'editor', 'thumbnail', 'excerpt', 'custom-fields' ),
         ) );
     }
 
@@ -94,8 +123,20 @@ class MiraEventList {
         );
         add_meta_box(
             'event-connections',
-            __( 'People & Charities', 'mira-event-list' ),
+            __( 'Speakers & Sponsors', 'mira-event-list' ),
             array( $this, 'event_connections_meta_box_callback' ),
+            'mira_event', 'normal', 'default'
+        );
+        add_meta_box(
+            'event-documents',
+            __( 'Documents', 'mira-event-list' ),
+            array( $this, 'event_documents_meta_box_callback' ),
+            'mira_event', 'normal', 'default'
+        );
+        add_meta_box(
+            'event-faqs',
+            __( 'FAQs', 'mira-event-list' ),
+            array( $this, 'event_faqs_meta_box_callback' ),
             'mira_event', 'normal', 'default'
         );
     }
@@ -103,10 +144,13 @@ class MiraEventList {
     public function event_meta_box_callback( $post ) {
         wp_nonce_field( basename( __FILE__ ), 'event_nonce' );
 
-        $event_date     = get_post_meta( $post->ID, '_event_date', true );
-        $event_link     = get_post_meta( $post->ID, '_event_link', true );
-        $event_location = get_post_meta( $post->ID, '_event_location', true );
-        $display_date   = get_post_meta( $post->ID, '_display_date', true );
+        $event_date               = get_post_meta( $post->ID, '_event_date', true );
+        $event_link               = get_post_meta( $post->ID, '_event_link', true );
+        $event_location           = get_post_meta( $post->ID, '_event_location', true );
+        $display_date             = get_post_meta( $post->ID, '_display_date', true );
+        $event_post_category      = (int) get_post_meta( $post->ID, '_event_post_category', true );
+        $event_registration_url   = get_post_meta( $post->ID, '_event_registration_url', true );
+        $event_registration_cta   = get_post_meta( $post->ID, '_event_registration_cta', true );
         ?>
         <table class="form-table">
             <tr>
@@ -134,6 +178,37 @@ class MiraEventList {
                 <td>
                     <input type="url" id="event_link" name="event_link" value="<?php echo esc_attr( $event_link ); ?>" class="large-text">
                     <p class="description"><?php esc_html_e( 'Used when ticketing is disabled — links the button to an external page.', 'mira-event-list' ); ?></p>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="event_post_category"><?php esc_html_e( 'Related Post Category', 'mira-event-list' ); ?></label></th>
+                <td>
+                    <?php wp_dropdown_categories( array(
+                        'name'             => 'event_post_category',
+                        'id'               => 'event_post_category',
+                        'selected'         => $event_post_category,
+                        'show_option_none' => __( '— None —', 'mira-event-list' ),
+                        'option_none_value'=> 0,
+                        'hide_empty'       => false,
+                        'orderby'          => 'name',
+                    ) ); ?>
+                    <p class="description"><?php esc_html_e( 'Posts in this category will be treated as related content for this event.', 'mira-event-list' ); ?></p>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="event_registration_url"><?php esc_html_e( 'Registration URL', 'mira-event-list' ); ?></label></th>
+                <td>
+                    <input type="url" id="event_registration_url" name="event_registration_url"
+                           value="<?php echo esc_attr( $event_registration_url ); ?>" class="large-text">
+                    <p class="description"><?php esc_html_e( 'Direct link to the registration or booking page for this event.', 'mira-event-list' ); ?></p>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="event_registration_cta"><?php esc_html_e( 'Registration Button Text', 'mira-event-list' ); ?></label></th>
+                <td>
+                    <input type="text" id="event_registration_cta" name="event_registration_cta"
+                           value="<?php echo esc_attr( $event_registration_cta ); ?>" class="regular-text"
+                           placeholder="e.g. Book Now, Buy Tickets, Register Free">
                 </td>
             </tr>
             <tr>
@@ -211,8 +286,48 @@ class MiraEventList {
         if ( isset( $_POST['event_link'] ) ) {
             update_post_meta( $post_id, '_event_link', esc_url_raw( $_POST['event_link'] ) );
         }
+        if ( isset( $_POST['event_registration_url'] ) ) {
+            update_post_meta( $post_id, '_event_registration_url', esc_url_raw( $_POST['event_registration_url'] ) );
+        }
+        if ( isset( $_POST['event_registration_cta'] ) ) {
+            update_post_meta( $post_id, '_event_registration_cta', sanitize_text_field( $_POST['event_registration_cta'] ) );
+        }
+        update_post_meta( $post_id, '_event_post_category', intval( $_POST['event_post_category'] ?? 0 ) );
 
-        // Connections (charities + people)
+        // Documents
+        if ( isset( $_POST['event_documents_nonce'] ) && wp_verify_nonce( $_POST['event_documents_nonce'], 'mira_event_documents_nonce' ) ) {
+            $docs = array();
+            if ( ! empty( $_POST['event_documents'] ) && is_array( $_POST['event_documents'] ) ) {
+                foreach ( $_POST['event_documents'] as $row ) {
+                    $url = esc_url_raw( $row['url'] ?? '' );
+                    if ( $url ) {
+                        $docs[] = array(
+                            'id'    => intval( $row['id'] ?? 0 ),
+                            'title' => sanitize_text_field( $row['title'] ?? '' ),
+                            'url'   => $url,
+                        );
+                    }
+                }
+            }
+            update_post_meta( $post_id, '_event_documents', wp_json_encode( $docs ) );
+        }
+
+        // FAQs
+        if ( isset( $_POST['event_faqs_nonce'] ) && wp_verify_nonce( $_POST['event_faqs_nonce'], 'mira_event_faqs_nonce' ) ) {
+            $faqs = array();
+            if ( ! empty( $_POST['event_faqs'] ) && is_array( $_POST['event_faqs'] ) ) {
+                foreach ( $_POST['event_faqs'] as $row ) {
+                    $q = sanitize_text_field( $row['question'] ?? '' );
+                    $a = sanitize_textarea_field( $row['answer'] ?? '' );
+                    if ( $q ) {
+                        $faqs[] = array( 'question' => $q, 'answer' => $a );
+                    }
+                }
+            }
+            update_post_meta( $post_id, '_event_faqs', wp_json_encode( $faqs ) );
+        }
+
+        // Connections (sponsor types)
         $this->save_event_connections_meta( $post_id );
 
         // Ticketing
@@ -228,83 +343,53 @@ class MiraEventList {
     public function event_connections_meta_box_callback( $post ) {
         wp_nonce_field( 'mira_event_connections_nonce', 'event_connections_nonce' );
 
-        $charities = json_decode( get_post_meta( $post->ID, '_event_charities', true ) ?: '[]', true ) ?: array();
-        $people    = json_decode( get_post_meta( $post->ID, '_event_people',    true ) ?: '[]', true ) ?: array();
-
-        $companies = get_posts( array( 'post_type' => 'mmevmt_company', 'posts_per_page' => -1, 'orderby' => 'title', 'order' => 'ASC', 'post_status' => 'publish' ) );
-        $persons   = get_posts( array( 'post_type' => 'mmevmt_person',  'posts_per_page' => -1, 'orderby' => 'title', 'order' => 'ASC', 'post_status' => 'publish' ) );
+        $saved_type    = (int) get_post_meta( $post->ID, '_event_sponsor_type', true );
+        $sponsor_types = get_terms( array( 'taxonomy' => 'sponsortype', 'hide_empty' => false ) );
+        if ( is_wp_error( $sponsor_types ) ) $sponsor_types = array();
         ?>
-        <style>
-            .mira-meta-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
-            .mira-meta-row select { flex:2; }
-            .mira-meta-row input[type=text] { flex:1.5; }
-        </style>
 
-        <h4 style="margin:0 0 8px;"><?php esc_html_e( 'Charities &amp; Sponsors', 'mira-event-list' ); ?></h4>
-        <?php if ( empty( $companies ) ) : ?>
-            <p class="description"><?php esc_html_e( 'No companies found. Activate the Miramedia Event Manager plugin and add companies first.', 'mira-event-list' ); ?></p>
+        <h4 style="margin:0 0 8px;"><?php esc_html_e( 'Sponsor Type', 'mira-event-list' ); ?></h4>
+        <?php if ( empty( $sponsor_types ) ) : ?>
+            <p class="description"><?php esc_html_e( 'No sponsor types found. Add sponsor types via the Sponsor Types taxonomy first.', 'mira-event-list' ); ?></p>
         <?php else : ?>
-            <div id="mira-charities-list">
-                <div class="mira-meta-row mira-charity-row" data-template="1" style="display:none;">
-                    <select name="event_charities[__IDX__][company_id]">
-                        <option value=""><?php esc_html_e( '-- Select Company --', 'mira-event-list' ); ?></option>
-                        <?php foreach ( $companies as $co ) : ?>
-                            <option value="<?php echo esc_attr( $co->ID ); ?>"><?php echo esc_html( $co->post_title ); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <input type="text" name="event_charities[__IDX__][label]" placeholder="<?php esc_attr_e( 'e.g. Charity, Sponsor', 'mira-event-list' ); ?>">
-                    <button type="button" class="button mira-remove-row"><?php esc_html_e( 'Remove', 'mira-event-list' ); ?></button>
-                </div>
-                <?php foreach ( $charities as $idx => $item ) : ?>
-                    <div class="mira-meta-row mira-charity-row">
-                        <select name="event_charities[<?php echo $idx; ?>][company_id]">
-                            <option value=""><?php esc_html_e( '-- Select Company --', 'mira-event-list' ); ?></option>
-                            <?php foreach ( $companies as $co ) : ?>
-                                <option value="<?php echo esc_attr( $co->ID ); ?>" <?php selected( intval( $item['company_id'] ?? 0 ), $co->ID ); ?>><?php echo esc_html( $co->post_title ); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <input type="text" name="event_charities[<?php echo $idx; ?>][label]" value="<?php echo esc_attr( $item['label'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'e.g. Charity, Sponsor', 'mira-event-list' ); ?>">
-                        <button type="button" class="button mira-remove-row"><?php esc_html_e( 'Remove', 'mira-event-list' ); ?></button>
-                    </div>
+            <select name="event_sponsor_type">
+                <option value="0"><?php esc_html_e( '— None —', 'mira-event-list' ); ?></option>
+                <?php foreach ( $sponsor_types as $st ) : ?>
+                    <option value="<?php echo esc_attr( $st->term_id ); ?>" <?php selected( $saved_type, $st->term_id ); ?>>
+                        <?php echo esc_html( $st->name ); ?>
+                    </option>
                 <?php endforeach; ?>
-            </div>
-            <button type="button" id="add-event-charity" class="button button-secondary" style="margin-top:6px;">
-                <?php esc_html_e( '+ Add Company', 'mira-event-list' ); ?>
-            </button>
+            </select>
+            <p class="description" style="margin-top:4px;"><?php esc_html_e( 'Individual sponsors are managed via the Sponsors post type.', 'mira-event-list' ); ?></p>
         <?php endif; ?>
 
-        <h4 style="margin:20px 0 8px;"><?php esc_html_e( 'People', 'mira-event-list' ); ?></h4>
-        <?php if ( empty( $persons ) ) : ?>
-            <p class="description"><?php esc_html_e( 'No people found. Activate the Miramedia Event Manager plugin and add people first.', 'mira-event-list' ); ?></p>
-        <?php else : ?>
-            <div id="mira-people-list">
-                <div class="mira-meta-row mira-person-row" data-template="1" style="display:none;">
-                    <select name="event_people[__IDX__][person_id]">
-                        <option value=""><?php esc_html_e( '-- Select Person --', 'mira-event-list' ); ?></option>
-                        <?php foreach ( $persons as $p ) : ?>
-                            <option value="<?php echo esc_attr( $p->ID ); ?>"><?php echo esc_html( $p->post_title ); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <input type="text" name="event_people[__IDX__][description]" placeholder="<?php esc_attr_e( 'e.g. MC, Headliner', 'mira-event-list' ); ?>">
-                    <button type="button" class="button mira-remove-row"><?php esc_html_e( 'Remove', 'mira-event-list' ); ?></button>
-                </div>
-                <?php foreach ( $people as $idx => $item ) : ?>
-                    <div class="mira-meta-row mira-person-row">
-                        <select name="event_people[<?php echo $idx; ?>][person_id]">
-                            <option value=""><?php esc_html_e( '-- Select Person --', 'mira-event-list' ); ?></option>
-                            <?php foreach ( $persons as $p ) : ?>
-                                <option value="<?php echo esc_attr( $p->ID ); ?>" <?php selected( intval( $item['person_id'] ?? 0 ), $p->ID ); ?>><?php echo esc_html( $p->post_title ); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <input type="text" name="event_people[<?php echo $idx; ?>][description]" value="<?php echo esc_attr( $item['description'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'e.g. MC, Headliner', 'mira-event-list' ); ?>">
-                        <button type="button" class="button mira-remove-row"><?php esc_html_e( 'Remove', 'mira-event-list' ); ?></button>
-                    </div>
+        <h4 style="margin:20px 0 8px;"><?php esc_html_e( 'Speakers', 'mira-event-list' ); ?></h4>
+        <?php
+        $speakers = get_posts( array(
+            'post_type'      => 'speakers',
+            'posts_per_page' => -1,
+            'orderby'        => 'title',
+            'order'          => 'ASC',
+            'post_status'    => 'publish',
+            'meta_query'     => array( array(
+                'key'   => 'amg_speaker_event_id',
+                'value' => $post->ID,
+            ) ),
+        ) );
+        if ( ! empty( $speakers ) ) : ?>
+            <ul style="margin:0 0 8px;padding-left:1.2em;">
+                <?php foreach ( $speakers as $spk ) :
+                    $job = get_post_meta( $spk->ID, 'speaker_speaker_job_title', true );
+                    $edit_url = get_edit_post_link( $spk->ID );
+                ?>
+                    <li>
+                        <a href="<?php echo esc_url( $edit_url ); ?>"><?php echo esc_html( $spk->post_title ); ?></a>
+                        <?php if ( $job ) : ?><span style="color:#777;"> — <?php echo esc_html( $job ); ?></span><?php endif; ?>
+                    </li>
                 <?php endforeach; ?>
-            </div>
-            <button type="button" id="add-event-person" class="button button-secondary" style="margin-top:6px;">
-                <?php esc_html_e( '+ Add Person', 'mira-event-list' ); ?>
-            </button>
+            </ul>
         <?php endif; ?>
+        <p class="description"><?php esc_html_e( 'These people are speaking at the event. To add more, edit each speaker and add an event.', 'mira-event-list' ); ?></p>
         <?php
     }
 
@@ -313,27 +398,84 @@ class MiraEventList {
             return;
         }
 
-        $charities = array();
-        if ( ! empty( $_POST['event_charities'] ) && is_array( $_POST['event_charities'] ) ) {
-            foreach ( $_POST['event_charities'] as $row ) {
-                $id = intval( $row['company_id'] ?? 0 );
-                if ( $id > 0 ) {
-                    $charities[] = array( 'company_id' => $id, 'label' => sanitize_text_field( $row['label'] ?? '' ) );
-                }
-            }
-        }
-        update_post_meta( $post_id, '_event_charities', wp_json_encode( $charities ) );
+        update_post_meta( $post_id, '_event_sponsor_type', intval( $_POST['event_sponsor_type'] ?? 0 ) );
+    }
 
-        $people = array();
-        if ( ! empty( $_POST['event_people'] ) && is_array( $_POST['event_people'] ) ) {
-            foreach ( $_POST['event_people'] as $row ) {
-                $id = intval( $row['person_id'] ?? 0 );
-                if ( $id > 0 ) {
-                    $people[] = array( 'person_id' => $id, 'description' => sanitize_text_field( $row['description'] ?? '' ) );
-                }
-            }
-        }
-        update_post_meta( $post_id, '_event_people', wp_json_encode( $people ) );
+    // ── Documents meta box ──────────────────────────────────────────────
+
+    public function event_documents_meta_box_callback( $post ) {
+        wp_nonce_field( 'mira_event_documents_nonce', 'event_documents_nonce' );
+        $documents = json_decode( get_post_meta( $post->ID, '_event_documents', true ) ?: '[]', true ) ?: array();
+        ?>
+        <div id="mira-documents-list">
+            <div class="mira-doc-row" data-template="1" style="display:none;">
+                <input type="text"   name="event_documents[__IDX__][title]" placeholder="<?php esc_attr_e( 'Document title', 'mira-event-list' ); ?>" class="regular-text">
+                <input type="hidden" name="event_documents[__IDX__][id]"    class="mira-doc-id">
+                <input type="hidden" name="event_documents[__IDX__][url]"   class="mira-doc-url">
+                <button type="button" class="button mira-doc-upload"><?php esc_html_e( 'Choose File', 'mira-event-list' ); ?></button>
+                <span class="mira-doc-filename" style="margin-left:6px;color:#555;font-size:12px;"></span>
+                <button type="button" class="button mira-remove-row" style="margin-left:6px;"><?php esc_html_e( 'Remove', 'mira-event-list' ); ?></button>
+            </div>
+            <?php foreach ( $documents as $idx => $doc ) :
+                $filename = $doc['url'] ? basename( $doc['url'] ) : '';
+            ?>
+                <div class="mira-doc-row" style="margin-bottom:8px;display:flex;align-items:center;gap:8px;">
+                    <input type="text"   name="event_documents[<?php echo $idx; ?>][title]" value="<?php echo esc_attr( $doc['title'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'Document title', 'mira-event-list' ); ?>" class="regular-text">
+                    <input type="hidden" name="event_documents[<?php echo $idx; ?>][id]"    value="<?php echo esc_attr( $doc['id'] ?? '' ); ?>" class="mira-doc-id">
+                    <input type="hidden" name="event_documents[<?php echo $idx; ?>][url]"   value="<?php echo esc_attr( $doc['url'] ?? '' ); ?>" class="mira-doc-url">
+                    <button type="button" class="button mira-doc-upload"><?php esc_html_e( 'Choose File', 'mira-event-list' ); ?></button>
+                    <span class="mira-doc-filename" style="margin-left:6px;color:#555;font-size:12px;"><?php echo esc_html( $filename ); ?></span>
+                    <button type="button" class="button mira-remove-row" style="margin-left:6px;"><?php esc_html_e( 'Remove', 'mira-event-list' ); ?></button>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <button type="button" id="add-event-document" class="button button-secondary" style="margin-top:8px;">
+            <?php esc_html_e( '+ Add Document', 'mira-event-list' ); ?>
+        </button>
+        <?php
+    }
+
+    // ── FAQs meta box ────────────────────────────────────────────────────
+
+    public function event_faqs_meta_box_callback( $post ) {
+        wp_nonce_field( 'mira_event_faqs_nonce', 'event_faqs_nonce' );
+        $faqs = json_decode( get_post_meta( $post->ID, '_event_faqs', true ) ?: '[]', true ) ?: array();
+        ?>
+        <div id="mira-faqs-list">
+            <div class="mira-faq-row" data-template="1" style="display:none;margin-bottom:12px;">
+                <div style="display:flex;gap:8px;align-items:flex-start;">
+                    <div style="flex:1;">
+                        <input type="text" name="event_faqs[__IDX__][question]"
+                               placeholder="<?php esc_attr_e( 'Question', 'mira-event-list' ); ?>"
+                               class="large-text" style="margin-bottom:4px;">
+                        <textarea name="event_faqs[__IDX__][answer]" rows="3"
+                                  placeholder="<?php esc_attr_e( 'Answer', 'mira-event-list' ); ?>"
+                                  class="large-text"></textarea>
+                    </div>
+                    <button type="button" class="button mira-remove-row" style="margin-top:2px;"><?php esc_html_e( 'Remove', 'mira-event-list' ); ?></button>
+                </div>
+            </div>
+            <?php foreach ( $faqs as $idx => $faq ) : ?>
+                <div class="mira-faq-row" style="margin-bottom:12px;">
+                    <div style="display:flex;gap:8px;align-items:flex-start;">
+                        <div style="flex:1;">
+                            <input type="text" name="event_faqs[<?php echo $idx; ?>][question]"
+                                   value="<?php echo esc_attr( $faq['question'] ?? '' ); ?>"
+                                   placeholder="<?php esc_attr_e( 'Question', 'mira-event-list' ); ?>"
+                                   class="large-text" style="margin-bottom:4px;">
+                            <textarea name="event_faqs[<?php echo $idx; ?>][answer]" rows="3"
+                                      placeholder="<?php esc_attr_e( 'Answer', 'mira-event-list' ); ?>"
+                                      class="large-text"><?php echo esc_textarea( $faq['answer'] ?? '' ); ?></textarea>
+                        </div>
+                        <button type="button" class="button mira-remove-row" style="margin-top:2px;"><?php esc_html_e( 'Remove', 'mira-event-list' ); ?></button>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <button type="button" id="add-event-faq" class="button button-secondary" style="margin-top:4px;">
+            <?php esc_html_e( '+ Add FAQ', 'mira-event-list' ); ?>
+        </button>
+        <?php
     }
 
     // ── Single event: append charities, people, booking ─────────────────
@@ -396,7 +538,7 @@ class MiraEventList {
                             $person = get_post( intval( $item['person_id'] ) );
                             if ( ! $person ) continue;
                             $thumb     = get_the_post_thumbnail( $person->ID, 'medium' );
-                            $job_title = get_post_meta( $person->ID, 'job_title', true );
+                            $job_title = get_post_meta( $person->ID, 'speaker_speaker_job_title', true );
                         ?>
                             <div class="mira-person-item">
                                 <?php if ( $thumb ) : ?>
@@ -606,14 +748,40 @@ class MiraEventList {
         if ( ! $screen || $screen->post_type !== 'mira_event' ) {
             return;
         }
+        wp_enqueue_media();
         $js = MIRA_EVENT_LIST_PATH . 'assets/event-meta.js';
         wp_enqueue_script(
             'mira-event-meta',
             MIRA_EVENT_LIST_URL . 'assets/event-meta.js',
-            array(),
+            array( 'jquery' ),
             file_exists( $js ) ? filemtime( $js ) : MIRA_EVENT_LIST_VERSION,
             true
         );
+    }
+
+    // ── Admin list columns ───────────────────────────────────────────────
+
+    public function event_admin_columns( $columns ) {
+        $new = array();
+        foreach ( $columns as $key => $label ) {
+            $new[ $key ] = $label;
+            if ( $key === 'title' ) {
+                $new['event_category'] = __( 'Category', 'mira-event-list' );
+            }
+        }
+        return $new;
+    }
+
+    public function event_admin_column_content( $column, $post_id ) {
+        if ( $column === 'event_category' ) {
+            $cat_id = (int) get_post_meta( $post_id, '_event_post_category', true );
+            if ( $cat_id ) {
+                $cat = get_category( $cat_id );
+                echo $cat && ! is_wp_error( $cat ) ? esc_html( $cat->name ) : '—';
+            } else {
+                echo '—';
+            }
+        }
     }
 
     // ── Shortcode ────────────────────────────────────────────────────────
