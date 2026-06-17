@@ -16,11 +16,19 @@ define( 'MIRA_EVENT_LIST_VERSION', '2.1.0' );
 define( 'MIRA_EVENT_LIST_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'MIRA_EVENT_LIST_URL',     plugin_dir_url( __FILE__ ) );
 
+if ( ! function_exists( 'is_plugin_active' ) ) {
+    require_once ABSPATH . 'wp-admin/includes/plugin.php';
+}
+
 require_once MIRA_EVENT_LIST_PATH . 'includes/class-mira-database.php';
 require_once MIRA_EVENT_LIST_PATH . 'includes/class-mira-stripe.php';
 require_once MIRA_EVENT_LIST_PATH . 'includes/class-mira-emails.php';
 require_once MIRA_EVENT_LIST_PATH . 'includes/class-mira-bookings.php';
 require_once MIRA_EVENT_LIST_PATH . 'includes/class-mira-admin-bookings.php';
+
+add_filter( 'use_block_editor_for_post_type', function( $use, $post_type ) {
+    return $post_type === 'mira_event' ? false : $use;
+}, 10, 2 );
 
 class MiraEventList {
 
@@ -121,12 +129,21 @@ class MiraEventList {
             array( $this, 'ticketing_meta_box_callback' ),
             'mira_event', 'normal', 'high'
         );
-        add_meta_box(
-            'event-connections',
-            __( 'Speakers & Sponsors', 'mira-event-list' ),
-            array( $this, 'event_connections_meta_box_callback' ),
-            'mira_event', 'normal', 'default'
-        );
+        if ( is_plugin_active( 'miramedia-event-manager-for-tedx/miramedia-event-manager-for-tedx.php' ) ) {
+            add_meta_box(
+                'event-connections',
+                __( 'People &amp; Charities', 'mira-event-list' ),
+                array( $this, 'event_tedx_connections_meta_box_callback' ),
+                'mira_event', 'normal', 'default'
+            );
+        } else {
+            add_meta_box(
+                'event-connections',
+                __( 'Speakers &amp; Sponsors', 'mira-event-list' ),
+                array( $this, 'event_connections_meta_box_callback' ),
+                'mira_event', 'normal', 'default'
+            );
+        }
         add_meta_box(
             'event-documents',
             __( 'Documents', 'mira-event-list' ),
@@ -327,8 +344,12 @@ class MiraEventList {
             update_post_meta( $post_id, '_event_faqs', wp_json_encode( $faqs ) );
         }
 
-        // Connections (sponsor types)
-        $this->save_event_connections_meta( $post_id );
+        // Connections
+        if ( is_plugin_active( 'miramedia-event-manager-for-tedx/miramedia-event-manager-for-tedx.php' ) ) {
+            $this->save_event_tedx_connections_meta( $post_id );
+        } else {
+            $this->save_event_connections_meta( $post_id );
+        }
 
         // Ticketing
         update_post_meta( $post_id, '_tickets_enabled', isset( $_POST['tickets_enabled'] ) ? '1' : '' );
@@ -399,6 +420,119 @@ class MiraEventList {
         }
 
         update_post_meta( $post_id, '_event_sponsor_type', intval( $_POST['event_sponsor_type'] ?? 0 ) );
+    }
+
+    // ── TEDx connections meta box (People & Charities) ───────────────────
+
+    public function event_tedx_connections_meta_box_callback( $post ) {
+        wp_nonce_field( 'mira_event_tedx_connections_nonce', 'event_tedx_connections_nonce' );
+
+        $charities = json_decode( get_post_meta( $post->ID, '_event_charities', true ) ?: '[]', true ) ?: array();
+        $people    = json_decode( get_post_meta( $post->ID, '_event_people',    true ) ?: '[]', true ) ?: array();
+
+        $companies = get_posts( array( 'post_type' => 'mmevmt_company', 'posts_per_page' => -1, 'orderby' => 'title', 'order' => 'ASC', 'post_status' => 'publish' ) );
+        $persons   = get_posts( array( 'post_type' => 'mmevmt_person',  'posts_per_page' => -1, 'orderby' => 'title', 'order' => 'ASC', 'post_status' => 'publish' ) );
+        ?>
+        <style>
+            .mira-meta-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+            .mira-meta-row select { flex:2; }
+            .mira-meta-row input[type=text] { flex:1.5; }
+        </style>
+
+        <h4 style="margin:0 0 8px;"><?php esc_html_e( 'Charities &amp; Sponsors', 'mira-event-list' ); ?></h4>
+        <?php if ( empty( $companies ) ) : ?>
+            <p class="description"><?php esc_html_e( 'No companies found. Add companies via the Event Manager plugin first.', 'mira-event-list' ); ?></p>
+        <?php else : ?>
+            <div id="mira-charities-list">
+                <div class="mira-meta-row mira-charity-row" data-template="1" style="display:none;">
+                    <select name="event_charities[__IDX__][company_id]">
+                        <option value=""><?php esc_html_e( '-- Select Company --', 'mira-event-list' ); ?></option>
+                        <?php foreach ( $companies as $co ) : ?>
+                            <option value="<?php echo esc_attr( $co->ID ); ?>"><?php echo esc_html( $co->post_title ); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <input type="text" name="event_charities[__IDX__][label]" placeholder="<?php esc_attr_e( 'e.g. Charity, Sponsor', 'mira-event-list' ); ?>">
+                    <button type="button" class="button mira-remove-row"><?php esc_html_e( 'Remove', 'mira-event-list' ); ?></button>
+                </div>
+                <?php foreach ( $charities as $idx => $item ) : ?>
+                    <div class="mira-meta-row mira-charity-row">
+                        <select name="event_charities[<?php echo $idx; ?>][company_id]">
+                            <option value=""><?php esc_html_e( '-- Select Company --', 'mira-event-list' ); ?></option>
+                            <?php foreach ( $companies as $co ) : ?>
+                                <option value="<?php echo esc_attr( $co->ID ); ?>" <?php selected( intval( $item['company_id'] ?? 0 ), $co->ID ); ?>><?php echo esc_html( $co->post_title ); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <input type="text" name="event_charities[<?php echo $idx; ?>][label]" value="<?php echo esc_attr( $item['label'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'e.g. Charity, Sponsor', 'mira-event-list' ); ?>">
+                        <button type="button" class="button mira-remove-row"><?php esc_html_e( 'Remove', 'mira-event-list' ); ?></button>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+            <button type="button" id="add-event-charity" class="button button-secondary" style="margin-top:6px;">
+                <?php esc_html_e( '+ Add Company', 'mira-event-list' ); ?>
+            </button>
+        <?php endif; ?>
+
+        <h4 style="margin:20px 0 8px;"><?php esc_html_e( 'People', 'mira-event-list' ); ?></h4>
+        <?php if ( empty( $persons ) ) : ?>
+            <p class="description"><?php esc_html_e( 'No people found. Add people via the Event Manager plugin first.', 'mira-event-list' ); ?></p>
+        <?php else : ?>
+            <div id="mira-people-list">
+                <div class="mira-meta-row mira-person-row" data-template="1" style="display:none;">
+                    <select name="event_people[__IDX__][person_id]">
+                        <option value=""><?php esc_html_e( '-- Select Person --', 'mira-event-list' ); ?></option>
+                        <?php foreach ( $persons as $p ) : ?>
+                            <option value="<?php echo esc_attr( $p->ID ); ?>"><?php echo esc_html( $p->post_title ); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <input type="text" name="event_people[__IDX__][description]" placeholder="<?php esc_attr_e( 'e.g. MC, Headliner', 'mira-event-list' ); ?>">
+                    <button type="button" class="button mira-remove-row"><?php esc_html_e( 'Remove', 'mira-event-list' ); ?></button>
+                </div>
+                <?php foreach ( $people as $idx => $item ) : ?>
+                    <div class="mira-meta-row mira-person-row">
+                        <select name="event_people[<?php echo $idx; ?>][person_id]">
+                            <option value=""><?php esc_html_e( '-- Select Person --', 'mira-event-list' ); ?></option>
+                            <?php foreach ( $persons as $p ) : ?>
+                                <option value="<?php echo esc_attr( $p->ID ); ?>" <?php selected( intval( $item['person_id'] ?? 0 ), $p->ID ); ?>><?php echo esc_html( $p->post_title ); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <input type="text" name="event_people[<?php echo $idx; ?>][description]" value="<?php echo esc_attr( $item['description'] ?? '' ); ?>" placeholder="<?php esc_attr_e( 'e.g. MC, Headliner', 'mira-event-list' ); ?>">
+                        <button type="button" class="button mira-remove-row"><?php esc_html_e( 'Remove', 'mira-event-list' ); ?></button>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+            <button type="button" id="add-event-person" class="button button-secondary" style="margin-top:6px;">
+                <?php esc_html_e( '+ Add Person', 'mira-event-list' ); ?>
+            </button>
+        <?php endif; ?>
+        <?php
+    }
+
+    private function save_event_tedx_connections_meta( $post_id ) {
+        if ( ! isset( $_POST['event_tedx_connections_nonce'] ) || ! wp_verify_nonce( $_POST['event_tedx_connections_nonce'], 'mira_event_tedx_connections_nonce' ) ) {
+            return;
+        }
+
+        $charities = array();
+        if ( ! empty( $_POST['event_charities'] ) && is_array( $_POST['event_charities'] ) ) {
+            foreach ( $_POST['event_charities'] as $row ) {
+                $id = intval( $row['company_id'] ?? 0 );
+                if ( $id > 0 ) {
+                    $charities[] = array( 'company_id' => $id, 'label' => sanitize_text_field( $row['label'] ?? '' ) );
+                }
+            }
+        }
+        update_post_meta( $post_id, '_event_charities', wp_json_encode( $charities ) );
+
+        $people = array();
+        if ( ! empty( $_POST['event_people'] ) && is_array( $_POST['event_people'] ) ) {
+            foreach ( $_POST['event_people'] as $row ) {
+                $id = intval( $row['person_id'] ?? 0 );
+                if ( $id > 0 ) {
+                    $people[] = array( 'person_id' => $id, 'description' => sanitize_text_field( $row['description'] ?? '' ) );
+                }
+            }
+        }
+        update_post_meta( $post_id, '_event_people', wp_json_encode( $people ) );
     }
 
     // ── Documents meta box ──────────────────────────────────────────────

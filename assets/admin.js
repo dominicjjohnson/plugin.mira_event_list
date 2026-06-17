@@ -45,14 +45,38 @@ jQuery(document).ready(function($) {
     // Remove event logo
     $('#remove-event-logo').click(function(e) {
         e.preventDefault();
-        
+
         // Clear the attachment ID
         $('#event_logo').val('');
-        
+
         // Remove image preview
         $('#event-logo-container').empty();
-        
+
         // Hide remove button
         $(this).hide();
+    });
+
+    // People & Charities repeater rows
+    function makeRow($template, listId, idx) {
+        var $row = $template.clone().removeAttr('data-template').show();
+        $row.find('[name]').each(function() {
+            var name = $(this).attr('name').replace('__IDX__', idx);
+            $(this).attr('name', name);
+        });
+        $('#' + listId).append($row);
+    }
+
+    var charityIdx = $('#mira-charities-list .mira-charity-row:not([data-template])').length;
+    $('#add-event-charity').on('click', function() {
+        makeRow($('#mira-charities-list .mira-charity-row[data-template]'), 'mira-charities-list', charityIdx++);
+    });
+
+    var personIdx = $('#mira-people-list .mira-person-row:not([data-template])').length;
+    $('#add-event-person').on('click', function() {
+        makeRow($('#mira-people-list .mira-person-row[data-template]'), 'mira-people-list', personIdx++);
+    });
+
+    $(document).on('click', '.mira-remove-row', function() {
+        $(this).closest('.mira-meta-row').remove();
     });
 });
