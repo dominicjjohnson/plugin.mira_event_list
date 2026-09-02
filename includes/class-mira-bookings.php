@@ -200,6 +200,11 @@ class MiraBookings {
             $email_handler->send_ticket( $attendee, $booking, $event );
         }
 
+        // Sync every attendee email to Mailjet, tagged for this event.
+        if ( class_exists( 'MiraMailjet' ) && MiraMailjet::is_enabled() ) {
+            MiraMailjet::sync_booking_attendees( $booking->id );
+        }
+
         $wpdb->update(
             $bookings_table,
             array( 'status' => 'complete' ),
@@ -256,6 +261,16 @@ class MiraBookings {
             array( '%s', '%s' ),
             array( '%d' )
         );
+
+        // Sync the buyer's email to Mailjet. Guarded by the pending→paid check
+        // above, so this runs once per booking even if the webhook retries.
+        if ( class_exists( 'MiraMailjet' ) && MiraMailjet::is_enabled() ) {
+            $full = $wpdb->get_row( $wpdb->prepare(
+                "SELECT event_id, lead_email FROM $bookings_table WHERE id = %d",
+                $booking->id
+            ) );
+            MiraMailjet::sync_booking_lead( $full );
+        }
     }
 
     // ── Shortcode: [mira_booking_success] ────────────────────────────────

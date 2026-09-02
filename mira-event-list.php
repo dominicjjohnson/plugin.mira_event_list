@@ -3,7 +3,7 @@
  * Plugin Name: Mira Event List
  * Plugin URI: https://github.com/dominicjjohnson/plugin.mira_event_list
  * Description: A WordPress plugin to manage events with custom post type, shortcode display, and Stripe ticket purchasing.
- * Version: 2.2.0
+ * Version: 2.3.0
  * Author: Miramedia / Dominic Johnson
  * Author URI: https://about.me/dominicjjohnson
  * License: GPL v2 or later
@@ -12,7 +12,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'MIRA_EVENT_LIST_VERSION', '2.2.0' );
+define( 'MIRA_EVENT_LIST_VERSION', '2.3.0' );
 define( 'MIRA_EVENT_LIST_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'MIRA_EVENT_LIST_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -21,6 +21,7 @@ if ( ! function_exists( 'is_plugin_active' ) ) {
 }
 
 require_once MIRA_EVENT_LIST_PATH . 'includes/class-mira-database.php';
+require_once MIRA_EVENT_LIST_PATH . 'includes/class-mira-mailjet.php';
 require_once MIRA_EVENT_LIST_PATH . 'includes/class-mira-stripe.php';
 require_once MIRA_EVENT_LIST_PATH . 'includes/class-mira-emails.php';
 require_once MIRA_EVENT_LIST_PATH . 'includes/class-mira-bookings.php';
@@ -57,6 +58,7 @@ class MiraEventList {
             '_event_registration_url', '_event_registration_cta',
             '_event_documents', '_event_faqs',
             '_tickets_enabled', '_ticket_price', '_enable_donation',
+            '_mailjet_event_tag',
         );
         foreach ( $string_fields as $key ) {
             register_post_meta( 'mira_event', $key, array(
@@ -242,6 +244,8 @@ class MiraEventList {
         $tickets_enabled = get_post_meta( $post->ID, '_tickets_enabled', true );
         $ticket_price    = get_post_meta( $post->ID, '_ticket_price', true );
         $enable_donation = get_post_meta( $post->ID, '_enable_donation', true );
+        $mailjet_tag     = get_post_meta( $post->ID, '_mailjet_event_tag', true );
+        $mailjet_auto    = MiraMailjet::generate_event_tag( $post->ID );
         ?>
         <table class="form-table">
             <tr>
@@ -271,6 +275,20 @@ class MiraEventList {
                         <input type="checkbox" name="enable_donation" value="1" <?php checked( $enable_donation, '1' ); ?>>
                         <?php esc_html_e( 'Allow buyers to add an optional donation at checkout', 'mira-event-list' ); ?>
                     </label>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="mailjet_event_tag"><?php esc_html_e( 'Mailjet Tag', 'mira-event-list' ); ?></label></th>
+                <td>
+                    <input type="text" id="mailjet_event_tag" name="mailjet_event_tag"
+                           value="<?php echo esc_attr( $mailjet_tag ); ?>"
+                           placeholder="<?php echo esc_attr( $mailjet_auto ); ?>"
+                           class="regular-text" autocapitalize="off" spellcheck="false">
+                    <p class="description">
+                        <?php esc_html_e( 'Boolean contact property set in Mailjet on everyone who books this event, for targeting campaigns. Leave blank to use the auto-generated name:', 'mira-event-list' ); ?>
+                        <code><?php echo esc_html( $mailjet_auto ); ?></code>.
+                        <?php esc_html_e( 'The property is created in Mailjet automatically on the first booking.', 'mira-event-list' ); ?>
+                    </p>
                 </td>
             </tr>
         </table>
@@ -357,6 +375,15 @@ class MiraEventList {
             update_post_meta( $post_id, '_ticket_price', (string) floatval( $_POST['ticket_price'] ) );
         }
         update_post_meta( $post_id, '_enable_donation', isset( $_POST['enable_donation'] ) ? '1' : '' );
+
+        if ( isset( $_POST['mailjet_event_tag'] ) ) {
+            $mailjet_tag = MiraMailjet::sanitize_tag( wp_unslash( $_POST['mailjet_event_tag'] ) );
+            if ( $mailjet_tag === '' ) {
+                delete_post_meta( $post_id, '_mailjet_event_tag' );
+            } else {
+                update_post_meta( $post_id, '_mailjet_event_tag', $mailjet_tag );
+            }
+        }
     }
 
     // ── Connections meta box ─────────────────────────────────────────────
@@ -1146,6 +1173,28 @@ class MiraEventList {
         add_settings_field( 'mira_ticket_from_name',     __( 'From Name', 'mira-event-list' ),     array( $this, 'ticket_from_name_render' ),     'mira_event_settings', 'mira_email_section' );
         add_settings_field( 'mira_ticket_from_email',    __( 'From Email', 'mira-event-list' ),     array( $this, 'ticket_from_email_render' ),    'mira_event_settings', 'mira_email_section' );
         add_settings_field( 'mira_ticket_email_subject', __( 'Email Subject', 'mira-event-list' ),  array( $this, 'ticket_email_subject_render' ), 'mira_event_settings', 'mira_email_section' );
+
+        // ── Mailjet section ─────────────────────────────────────────────
+        register_setting( 'mira_event_settings', 'mira_mailjet_enabled',    array( 'sanitize_callback' => array( $this, 'sanitize_checkbox' ) ) );
+        register_setting( 'mira_event_settings', 'mira_mailjet_api_key',    array( 'sanitize_callback' => 'sanitize_text_field' ) );
+        register_setting( 'mira_event_settings', 'mira_mailjet_secret_key', array( 'sanitize_callback' => 'sanitize_text_field' ) );
+        register_setting( 'mira_event_settings', 'mira_mailjet_list_id',    array( 'sanitize_callback' => 'sanitize_text_field' ) );
+
+        add_settings_section(
+            'mira_mailjet_section',
+            __( 'Mailjet Sync', 'mira-event-list' ),
+            array( $this, 'mailjet_section_callback' ),
+            'mira_event_settings'
+        );
+
+        add_settings_field( 'mira_mailjet_enabled',    __( 'Enable Sync', 'mira-event-list' ),      array( $this, 'mailjet_enabled_render' ),    'mira_event_settings', 'mira_mailjet_section' );
+        add_settings_field( 'mira_mailjet_api_key',    __( 'API Key', 'mira-event-list' ),          array( $this, 'mailjet_api_key_render' ),    'mira_event_settings', 'mira_mailjet_section' );
+        add_settings_field( 'mira_mailjet_secret_key', __( 'Secret Key', 'mira-event-list' ),       array( $this, 'mailjet_secret_key_render' ), 'mira_event_settings', 'mira_mailjet_section' );
+        add_settings_field( 'mira_mailjet_list_id',    __( 'Contact List ID', 'mira-event-list' ),  array( $this, 'mailjet_list_id_render' ),    'mira_event_settings', 'mira_mailjet_section' );
+    }
+
+    public function sanitize_checkbox( $value ) {
+        return $value === '1' ? '1' : '';
     }
 
     // ── Settings field renderers ─────────────────────────────────────────
@@ -1227,6 +1276,66 @@ class MiraEventList {
         $v = get_option( 'mira_ticket_email_subject', 'Your ticket for {event_name}' );
         echo '<input type="text" name="mira_ticket_email_subject" value="' . esc_attr( $v ) . '" class="regular-text">';
         echo '<p class="description">' . esc_html__( 'Use {event_name} as a placeholder for the event title.', 'mira-event-list' ) . '</p>';
+    }
+
+    // ── Mailjet settings renderers ───────────────────────────────────────
+
+    public function mailjet_section_callback() {
+        ?>
+        <p><?php esc_html_e( 'Sync buyer and attendee email addresses into a Mailjet contact list as bookings are paid. Each contact is tagged with a per-event boolean property so you can target campaigns at the people who booked a specific event.', 'mira-event-list' ); ?></p>
+        <p><?php esc_html_e( 'Find your keys in Mailjet under Account settings → REST API → API Key Management.', 'mira-event-list' ); ?></p>
+        <?php
+
+        $last_error = get_option( MiraMailjet::LAST_ERROR, '' );
+        if ( $last_error ) {
+            echo '<p style="color:#b00"><strong>' . esc_html__( 'Last sync error:', 'mira-event-list' ) . '</strong> <code>' . esc_html( $last_error ) . '</code></p>';
+        }
+
+        if ( MiraMailjet::has_keys() ) {
+            $lists = MiraMailjet::get_lists();
+            if ( empty( $lists ) ) {
+                echo '<p style="color:#b00">' . esc_html__( 'Could not load contact lists — check the API key and secret above.', 'mira-event-list' ) . '</p>';
+            } else {
+                echo '<p><strong>' . esc_html__( 'Your contact lists (copy the numeric ID into the field below):', 'mira-event-list' ) . '</strong></p>';
+                echo '<table class="wp-list-table widefat fixed striped" style="max-width:520px;margin-bottom:1em"><thead><tr>';
+                echo '<th style="width:110px">' . esc_html__( 'ID', 'mira-event-list' ) . '</th>';
+                echo '<th>' . esc_html__( 'Name', 'mira-event-list' ) . '</th>';
+                echo '<th style="width:110px">' . esc_html__( 'Contacts', 'mira-event-list' ) . '</th>';
+                echo '</tr></thead><tbody>';
+                foreach ( $lists as $l ) {
+                    printf(
+                        '<tr><td><code>%d</code></td><td>%s</td><td>%s</td></tr>',
+                        (int) $l['id'],
+                        esc_html( $l['name'] ),
+                        esc_html( number_format_i18n( $l['count'] ) )
+                    );
+                }
+                echo '</tbody></table>';
+            }
+        }
+    }
+
+    public function mailjet_enabled_render() {
+        $v = get_option( 'mira_mailjet_enabled', '' );
+        echo '<input type="hidden" name="mira_mailjet_enabled" value="0">';
+        echo '<label><input type="checkbox" name="mira_mailjet_enabled" value="1" ' . checked( $v, '1', false ) . '> ';
+        echo esc_html__( 'Push booking emails to Mailjet as bookings are paid', 'mira-event-list' ) . '</label>';
+    }
+
+    public function mailjet_api_key_render() {
+        $v = get_option( 'mira_mailjet_api_key', '' );
+        echo '<input type="text" name="mira_mailjet_api_key" value="' . esc_attr( $v ) . '" class="regular-text" autocomplete="off" autocapitalize="off" spellcheck="false">';
+    }
+
+    public function mailjet_secret_key_render() {
+        $v = get_option( 'mira_mailjet_secret_key', '' );
+        echo '<input type="password" name="mira_mailjet_secret_key" value="' . esc_attr( $v ) . '" class="regular-text" autocomplete="new-password">';
+    }
+
+    public function mailjet_list_id_render() {
+        $v = get_option( 'mira_mailjet_list_id', '' );
+        echo '<input type="text" name="mira_mailjet_list_id" value="' . esc_attr( $v ) . '" class="regular-text" inputmode="numeric">';
+        echo '<p class="description">' . esc_html__( 'Numeric ID of the contact list new bookers are added to (e.g. the TWComedy.club list). See the table above.', 'mira-event-list' ) . '</p>';
     }
 
     // ── Options page ─────────────────────────────────────────────────────
