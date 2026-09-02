@@ -48,6 +48,134 @@ class MiraAdminBookings {
             $this->output_csv();
             exit;
         }
+
+        if ( $action === 'mailjet_sync' ) {
+            check_admin_referer( 'mira_mailjet_sync' );
+            $this->run_mailjet_sync( max( 0, intval( $_GET['offset'] ?? 0 ) ) );
+            exit;
+        }
+    }
+
+    // ── Mailjet backfill (chunked, self-advancing) ───────────────────────
+
+    const MAILJET_BATCH = 15;
+    const MAILJET_TOTALS = 'mira_mailjet_backfill_totals';
+
+    private function run_mailjet_sync( $offset ) {
+        global $wpdb;
+        $bookings_table  = $wpdb->prefix . 'mira_bookings';
+        $attendees_table = $wpdb->prefix . 'mira_attendees';
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( esc_html__( 'You do not have permission to do this.', 'mira-event-list' ) );
+        }
+
+        if ( ! class_exists( 'MiraMailjet' ) || ! MiraMailjet::is_enabled() ) {
+            wp_die( esc_html__( 'Mailjet sync is not enabled. Configure it under Events → Settings first.', 'mira-event-list' ) );
+        }
+
+        @set_time_limit( 120 );
+
+        $total = (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM $bookings_table WHERE status IN ('paid','complete')"
+        );
+
+        $bookings = $wpdb->get_results( $wpdb->prepare(
+            "SELECT id, event_id, lead_email FROM $bookings_table
+             WHERE status IN ('paid','complete')
+             ORDER BY id ASC
+             LIMIT %d OFFSET %d",
+            self::MAILJET_BATCH,
+            $offset
+        ) );
+
+        $totals = get_transient( self::MAILJET_TOTALS );
+        if ( ! is_array( $totals ) ) {
+            $totals = array( 'ok' => 0, 'partial' => 0, 'failed' => 0, 'skipped' => 0 );
+        }
+
+        foreach ( $bookings as $b ) {
+            $tag  = MiraMailjet::event_tag( $b->event_id );
+            $seen = array();
+
+            $emails = array();
+            if ( ! empty( $b->lead_email ) ) {
+                $emails[ strtolower( $b->lead_email ) ] = array( 'email' => $b->lead_email, 'name' => '' );
+            }
+            $attendees = $wpdb->get_results( $wpdb->prepare(
+                "SELECT name, email FROM $attendees_table WHERE booking_id = %d",
+                $b->id
+            ) );
+            foreach ( $attendees as $a ) {
+                $emails[ strtolower( $a->email ) ] = array( 'email' => $a->email, 'name' => $a->name );
+            }
+
+            foreach ( $emails as $row ) {
+                $key = $row['email'] . '|' . $tag;
+                if ( isset( $seen[ $key ] ) ) {
+                    continue;
+                }
+                $seen[ $key ] = true;
+                $result = MiraMailjet::sync_contact( $row['email'], $row['name'], $tag );
+                $totals[ $result ] = ( $totals[ $result ] ?? 0 ) + 1;
+            }
+        }
+
+        $processed = $offset + count( $bookings );
+        $done      = count( $bookings ) < self::MAILJET_BATCH || $processed >= $total;
+
+        set_transient( self::MAILJET_TOTALS, $totals, HOUR_IN_SECONDS );
+
+        $list_url = admin_url( 'edit.php?post_type=mira_event&page=mira-bookings' );
+
+        if ( $done ) {
+            delete_transient( self::MAILJET_TOTALS );
+            wp_safe_redirect( add_query_arg( array(
+                'mailjet_done'    => '1',
+                'mailjet_ok'      => (int) $totals['ok'],
+                'mailjet_partial' => (int) $totals['partial'],
+                'mailjet_failed'  => (int) $totals['failed'],
+            ), $list_url ) );
+            exit;
+        }
+
+        $next_url = wp_nonce_url(
+            add_query_arg( array(
+                'post_type' => 'mira_event',
+                'page'      => 'mira-bookings',
+                'action'    => 'mailjet_sync',
+                'offset'    => $processed,
+            ), admin_url( 'edit.php' ) ),
+            'mira_mailjet_sync'
+        );
+
+        $pct = $total ? round( $processed / $total * 100 ) : 100;
+
+        // Minimal self-advancing progress page.
+        nocache_headers();
+        echo '<!doctype html><meta charset="utf-8">';
+        echo '<meta http-equiv="refresh" content="1;url=' . esc_url( $next_url ) . '">';
+        echo '<title>' . esc_html__( 'Syncing to Mailjet…', 'mira-event-list' ) . '</title>';
+        echo '<div style="font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;max-width:520px;margin:80px auto;padding:0 20px">';
+        echo '<h1 style="font-size:18px">' . esc_html__( 'Syncing booking emails to Mailjet…', 'mira-event-list' ) . '</h1>';
+        echo '<div style="background:#e5e7eb;border-radius:6px;height:14px;overflow:hidden">';
+        echo '<div style="background:#15803d;height:100%;width:' . esc_attr( $pct ) . '%"></div></div>';
+        echo '<p>' . sprintf(
+            /* translators: 1: processed count, 2: total count */
+            esc_html__( '%1$d of %2$d bookings processed. This page continues automatically.', 'mira-event-list' ),
+            (int) $processed,
+            (int) $total
+        ) . '</p>';
+        echo '<p>' . sprintf(
+            /* translators: 1: synced, 2: partial, 3: failed */
+            esc_html__( 'Synced: %1$d · Tag missing: %2$d · Failed: %3$d', 'mira-event-list' ),
+            (int) $totals['ok'],
+            (int) $totals['partial'],
+            (int) $totals['failed']
+        ) . '</p>';
+        echo '<p><a href="' . esc_url( $list_url ) . '">' . esc_html__( 'Stop and return to Bookings', 'mira-event-list' ) . '</a></p>';
+        echo '</div>';
+        exit;
     }
 
     // ── Router ────────────────────────────────────────────────────────────
@@ -128,6 +256,21 @@ class MiraAdminBookings {
                 <div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Booking deleted.', 'mira-event-list' ); ?></p></div>
             <?php endif; ?>
 
+            <?php if ( isset( $_GET['mailjet_done'] ) ) : ?>
+                <div class="notice notice-success is-dismissible"><p><?php
+                    printf(
+                        /* translators: 1: synced, 2: partial, 3: failed */
+                        esc_html__( 'Mailjet sync finished. Synced: %1$d · Added without tag: %2$d · Failed: %3$d.', 'mira-event-list' ),
+                        intval( $_GET['mailjet_ok'] ?? 0 ),
+                        intval( $_GET['mailjet_partial'] ?? 0 ),
+                        intval( $_GET['mailjet_failed'] ?? 0 )
+                    );
+                    if ( intval( $_GET['mailjet_failed'] ?? 0 ) || intval( $_GET['mailjet_partial'] ?? 0 ) ) {
+                        echo ' ' . esc_html__( 'See Events → Settings → Mailjet Sync for the last error.', 'mira-event-list' );
+                    }
+                ?></p></div>
+            <?php endif; ?>
+
             <?php if ( ! empty( $summary ) ) : ?>
             <h2 style="margin-top:1.5em"><?php esc_html_e( 'Revenue Summary (paid &amp; complete bookings)', 'mira-event-list' ); ?></h2>
             <table class="wp-list-table widefat fixed striped" style="max-width:700px;margin-bottom:2em">
@@ -189,6 +332,22 @@ class MiraAdminBookings {
                 <a href="<?php echo esc_url( $export_url ); ?>" class="button button-secondary">
                     ⬇ <?php esc_html_e( 'Export CSV', 'mira-event-list' ); ?>
                 </a>
+                <?php if ( class_exists( 'MiraMailjet' ) && MiraMailjet::is_enabled() ) :
+                    $mailjet_url = wp_nonce_url(
+                        add_query_arg( array(
+                            'post_type' => 'mira_event',
+                            'page'      => 'mira-bookings',
+                            'action'    => 'mailjet_sync',
+                            'offset'    => 0,
+                        ), admin_url( 'edit.php' ) ),
+                        'mira_mailjet_sync'
+                    );
+                    ?>
+                    <a href="<?php echo esc_url( $mailjet_url ); ?>" class="button button-secondary"
+                       onclick="return confirm('<?php esc_attr_e( 'Sync every buyer and attendee email from all paid and complete bookings to Mailjet now?', 'mira-event-list' ); ?>')">
+                        <?php esc_html_e( 'Sync all to Mailjet', 'mira-event-list' ); ?>
+                    </a>
+                <?php endif; ?>
             </form>
 
             <ul class="subsubsub" style="margin-bottom:8px">
