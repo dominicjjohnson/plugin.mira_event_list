@@ -2,6 +2,20 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.4.0] - 2026-09-03
+
+### Added
+- Talks can now be linked to an event from the "People, Charities & Talks" meta
+  box (requires the TEDx Event Manager plugin). Linked talks with a YouTube
+  link are embedded on the single event page, below the content and above the
+  ticket booking form.
+
+### Changed
+- Event logos/titles in `[mira_event_list]` now always link to the event's own
+  page on this site, instead of only linking out when an external Event Link
+  was set and ticketing was disabled. The bottom "Goto Event" button/booking
+  form behavior is unchanged.
+
 ## [2.3.0] - 2026-09-02
 
 ### Added

@@ -13,12 +13,14 @@
 }
 
 .mira-event-charities,
-.mira-event-people {
+.mira-event-people,
+.mira-event-talks {
     margin-bottom: 48px;
 }
 
 .mira-event-charities h3,
-.mira-event-people h3 {
+.mira-event-people h3,
+.mira-event-talks h3 {
     font-size: 20px;
     font-weight: 700;
     margin: 0 0 20px;

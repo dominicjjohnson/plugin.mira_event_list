@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     initRepeater('mira-charities-list',  'add-event-charity', 'mira-charity-row');
     initRepeater('mira-people-list',    'add-event-person',  'mira-person-row');
+    initRepeater('mira-talks-list',     'add-event-talk',    'mira-talk-row');
     initRepeater('mira-faqs-list',      'add-event-faq',     'mira-faq-row');
     initRepeater('mira-documents-list', 'add-event-document','mira-doc-row');
 

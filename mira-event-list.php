@@ -3,7 +3,7 @@
  * Plugin Name: Mira Event List
  * Plugin URI: https://github.com/dominicjjohnson/plugin.mira_event_list
  * Description: A WordPress plugin to manage events with custom post type, shortcode display, and Stripe ticket purchasing.
- * Version: 2.3.0
+ * Version: 2.4.0
  * Author: Miramedia / Dominic Johnson
  * Author URI: https://about.me/dominicjjohnson
  * License: GPL v2 or later
@@ -12,7 +12,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'MIRA_EVENT_LIST_VERSION', '2.3.0' );
+define( 'MIRA_EVENT_LIST_VERSION', '2.4.0' );
 define( 'MIRA_EVENT_LIST_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'MIRA_EVENT_LIST_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -134,7 +134,7 @@ class MiraEventList {
         if ( is_plugin_active( 'miramedia-event-manager-for-tedx/miramedia-event-manager-for-tedx.php' ) ) {
             add_meta_box(
                 'event-connections',
-                __( 'People &amp; Charities', 'mira-event-list' ),
+                __( 'People, Charities &amp; Talks', 'mira-event-list' ),
                 array( $this, 'event_tedx_connections_meta_box_callback' ),
                 'mira_event', 'normal', 'default'
             );
@@ -456,9 +456,11 @@ class MiraEventList {
 
         $charities = json_decode( get_post_meta( $post->ID, '_event_charities', true ) ?: '[]', true ) ?: array();
         $people    = json_decode( get_post_meta( $post->ID, '_event_people',    true ) ?: '[]', true ) ?: array();
+        $talks     = json_decode( get_post_meta( $post->ID, '_event_talks',     true ) ?: '[]', true ) ?: array();
 
-        $companies = get_posts( array( 'post_type' => 'mmevmt_company', 'posts_per_page' => -1, 'orderby' => 'title', 'order' => 'ASC', 'post_status' => 'publish' ) );
-        $persons   = get_posts( array( 'post_type' => 'mmevmt_person',  'posts_per_page' => -1, 'orderby' => 'title', 'order' => 'ASC', 'post_status' => 'publish' ) );
+        $companies  = get_posts( array( 'post_type' => 'mmevmt_company', 'posts_per_page' => -1, 'orderby' => 'title', 'order' => 'ASC', 'post_status' => 'publish' ) );
+        $persons    = get_posts( array( 'post_type' => 'mmevmt_person',  'posts_per_page' => -1, 'orderby' => 'title', 'order' => 'ASC', 'post_status' => 'publish' ) );
+        $all_talks  = get_posts( array( 'post_type' => 'mmevmt_talk',    'posts_per_page' => -1, 'orderby' => 'title', 'order' => 'ASC', 'post_status' => 'publish' ) );
         ?>
         <style>
             .mira-meta-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
@@ -531,6 +533,38 @@ class MiraEventList {
                 <?php esc_html_e( '+ Add Person', 'mira-event-list' ); ?>
             </button>
         <?php endif; ?>
+
+        <h4 style="margin:20px 0 8px;"><?php esc_html_e( 'Talks', 'mira-event-list' ); ?></h4>
+        <?php if ( empty( $all_talks ) ) : ?>
+            <p class="description"><?php esc_html_e( 'No talks found. Add talks via the Event Manager plugin first.', 'mira-event-list' ); ?></p>
+        <?php else : ?>
+            <div id="mira-talks-list">
+                <div class="mira-meta-row mira-talk-row" data-template="1" style="display:none;">
+                    <select name="event_talks[__IDX__][talk_id]">
+                        <option value=""><?php esc_html_e( '-- Select Talk --', 'mira-event-list' ); ?></option>
+                        <?php foreach ( $all_talks as $tk ) : ?>
+                            <option value="<?php echo esc_attr( $tk->ID ); ?>"><?php echo esc_html( $tk->post_title ); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <button type="button" class="button mira-remove-row"><?php esc_html_e( 'Remove', 'mira-event-list' ); ?></button>
+                </div>
+                <?php foreach ( $talks as $idx => $item ) : ?>
+                    <div class="mira-meta-row mira-talk-row">
+                        <select name="event_talks[<?php echo $idx; ?>][talk_id]">
+                            <option value=""><?php esc_html_e( '-- Select Talk --', 'mira-event-list' ); ?></option>
+                            <?php foreach ( $all_talks as $tk ) : ?>
+                                <option value="<?php echo esc_attr( $tk->ID ); ?>" <?php selected( intval( $item['talk_id'] ?? 0 ), $tk->ID ); ?>><?php echo esc_html( $tk->post_title ); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="button" class="button mira-remove-row"><?php esc_html_e( 'Remove', 'mira-event-list' ); ?></button>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+            <button type="button" id="add-event-talk" class="button button-secondary" style="margin-top:6px;">
+                <?php esc_html_e( '+ Add Talk', 'mira-event-list' ); ?>
+            </button>
+            <p class="description" style="margin-top:6px;"><?php esc_html_e( 'Talks with a YouTube link will be embedded below the event content, above the ticket form.', 'mira-event-list' ); ?></p>
+        <?php endif; ?>
         <?php
     }
 
@@ -560,6 +594,17 @@ class MiraEventList {
             }
         }
         update_post_meta( $post_id, '_event_people', wp_json_encode( $people ) );
+
+        $talks = array();
+        if ( ! empty( $_POST['event_talks'] ) && is_array( $_POST['event_talks'] ) ) {
+            foreach ( $_POST['event_talks'] as $row ) {
+                $id = intval( $row['talk_id'] ?? 0 );
+                if ( $id > 0 ) {
+                    $talks[] = array( 'talk_id' => $id );
+                }
+            }
+        }
+        update_post_meta( $post_id, '_event_talks', wp_json_encode( $talks ) );
     }
 
     // ── Documents meta box ──────────────────────────────────────────────
@@ -651,6 +696,7 @@ class MiraEventList {
     private function render_event_extras( $post_id ) {
         $charities = json_decode( get_post_meta( $post_id, '_event_charities', true ) ?: '[]', true ) ?: array();
         $people    = json_decode( get_post_meta( $post_id, '_event_people',    true ) ?: '[]', true ) ?: array();
+        $talks     = json_decode( get_post_meta( $post_id, '_event_talks',     true ) ?: '[]', true ) ?: array();
 
         $tickets_enabled   = get_post_meta( $post_id, '_tickets_enabled', true );
         $ticket_price      = floatval( get_post_meta( $post_id, '_ticket_price', true ) );
@@ -717,6 +763,33 @@ class MiraEventList {
                             </div>
                         <?php endforeach; ?>
                     </div>
+                </div>
+            <?php endif; ?>
+
+            <?php
+                $talk_videos_html = '';
+                foreach ( $talks as $item ) {
+                    $talk_id = intval( $item['talk_id'] ?? 0 );
+                    if ( ! $talk_id || get_post_type( $talk_id ) !== 'mmevmt_talk' ) continue;
+
+                    $youtube_link = get_post_meta( $talk_id, 'youtube_link', true );
+                    $embed_url = ( $youtube_link && function_exists( 'mmevmt_get_youtube_embed_url' ) ) ? mmevmt_get_youtube_embed_url( $youtube_link ) : '';
+                    if ( ! $embed_url ) continue;
+
+                    $talk_title = get_the_title( $talk_id );
+                    $talk_videos_html .= '<div class="person-talk-video">';
+                    $talk_videos_html .= '<div class="person-talk-video-frame">';
+                    $talk_videos_html .= '<iframe src="' . esc_url( $embed_url ) . '" title="' . esc_attr( $talk_title ) . '" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>';
+                    $talk_videos_html .= '</div>';
+                    $talk_videos_html .= '<p class="person-talk-title">' . esc_html( $talk_title ) . '</p>';
+                    $talk_videos_html .= '</div>';
+                }
+            ?>
+
+            <?php if ( ! empty( $talk_videos_html ) ) : ?>
+                <div class="mira-event-talks">
+                    <h3><?php echo esc_html( function_exists( 'mmevmt_get_label' ) ? mmevmt_get_label( 'talks_heading' ) : __( 'Talks', 'mira-event-list' ) ); ?></h3>
+                    <div class="person-talks-list"><?php echo $talk_videos_html; ?></div>
                 </div>
             <?php endif; ?>
 
@@ -1001,23 +1074,15 @@ class MiraEventList {
 
                     <?php if ( has_post_thumbnail() ) : ?>
                         <div class="event-logo">
-                            <?php if ( $event_link && ! $tickets_enabled ) : ?>
-                                <a href="<?php echo esc_url( $event_link ); ?>" <?php echo $target_attr; ?> class="event-logo-link">
-                                    <?php the_post_thumbnail( 'event-logo', array( 'alt' => get_the_title() ) ); ?>
-                                </a>
-                            <?php else : ?>
+                            <a href="<?php echo esc_url( get_permalink( $post_id ) ); ?>" class="event-logo-link">
                                 <?php the_post_thumbnail( 'event-logo', array( 'alt' => get_the_title() ) ); ?>
-                            <?php endif; ?>
+                            </a>
                         </div>
                     <?php else : ?>
                         <div class="event-title">
-                            <?php if ( $event_link && ! $tickets_enabled ) : ?>
-                                <a href="<?php echo esc_url( $event_link ); ?>" <?php echo $target_attr; ?> class="event-title-link">
-                                    <?php the_title(); ?>
-                                </a>
-                            <?php else : ?>
+                            <a href="<?php echo esc_url( get_permalink( $post_id ) ); ?>" class="event-title-link">
                                 <?php the_title(); ?>
-                            <?php endif; ?>
+                            </a>
                         </div>
                     <?php endif; ?>
 
