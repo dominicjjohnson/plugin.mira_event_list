@@ -43,6 +43,28 @@ class MiraAdminBookings {
             exit;
         }
 
+        if ( $action === 'resend_tickets' && isset( $_GET['booking_id'] ) ) {
+            $booking_id = intval( $_GET['booking_id'] );
+            check_admin_referer( 'mira_resend_tickets_' . $booking_id );
+
+            if ( ! current_user_can( 'manage_options' ) ) {
+                wp_die( esc_html__( 'You do not have permission to do this.', 'mira-event-list' ) );
+            }
+
+            $sent = $this->resend_tickets( $booking_id );
+
+            $redirect = wp_get_referer();
+            if ( ! $redirect || strpos( $redirect, 'page=mira-bookings' ) === false ) {
+                $redirect = add_query_arg(
+                    array( 'page' => 'mira-bookings', 'booking_id' => $booking_id ),
+                    admin_url( 'edit.php?post_type=mira_event' )
+                );
+            }
+
+            wp_safe_redirect( add_query_arg( 'resent', $sent, remove_query_arg( array( 'resent', 'action', '_wpnonce' ), $redirect ) ) );
+            exit;
+        }
+
         if ( $action === 'export_csv' ) {
             check_admin_referer( 'mira_export_csv' );
             $this->output_csv();
@@ -178,6 +200,62 @@ class MiraAdminBookings {
         exit;
     }
 
+    // ── Resend tickets ───────────────────────────────────────────────────
+
+    /**
+     * Re-send the ticket email for every attendee on a booking, with a copy
+     * CC'd to the site admin. Returns the number of emails sent.
+     */
+    private function resend_tickets( $booking_id ) {
+        global $wpdb;
+        $bookings_table  = $wpdb->prefix . 'mira_bookings';
+        $attendees_table = $wpdb->prefix . 'mira_attendees';
+
+        $booking = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM $bookings_table WHERE id = %d", $booking_id
+        ) );
+        if ( ! $booking ) {
+            return 0;
+        }
+
+        $attendees = $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM $attendees_table WHERE booking_id = %d ORDER BY is_lead DESC, id ASC",
+            $booking_id
+        ) );
+        if ( empty( $attendees ) ) {
+            return 0;
+        }
+
+        $event = get_post( $booking->event_id );
+        if ( ! $event ) {
+            return 0;
+        }
+
+        $admin_email   = get_option( 'admin_email' );
+        $cc_headers    = $admin_email ? array( 'Cc: ' . $admin_email ) : array();
+        $email_handler = new MiraEmails();
+        $sent          = 0;
+
+        foreach ( $attendees as $a ) {
+            $ok = $email_handler->send_ticket(
+                array(
+                    'id'            => $a->id,
+                    'name'          => $a->name,
+                    'email'         => $a->email,
+                    'ticket_number' => $a->ticket_number,
+                ),
+                $booking,
+                $event,
+                $cc_headers
+            );
+            if ( $ok ) {
+                $sent++;
+            }
+        }
+
+        return $sent;
+    }
+
     // ── Router ────────────────────────────────────────────────────────────
 
     public function render_page() {
@@ -254,6 +332,10 @@ class MiraAdminBookings {
 
             <?php if ( isset( $_GET['deleted'] ) ) : ?>
                 <div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Booking deleted.', 'mira-event-list' ); ?></p></div>
+            <?php endif; ?>
+
+            <?php if ( isset( $_GET['resent'] ) ) : ?>
+                <?php echo $this->resent_notice( intval( $_GET['resent'] ) ); ?>
             <?php endif; ?>
 
             <?php if ( isset( $_GET['mailjet_done'] ) ) : ?>
@@ -386,7 +468,7 @@ class MiraAdminBookings {
                         <th style="width:80px"><?php esc_html_e( 'Total', 'mira-event-list' ); ?></th>
                         <th style="width:90px"><?php esc_html_e( 'Status', 'mira-event-list' ); ?></th>
                         <th style="width:130px"><?php esc_html_e( 'Date', 'mira-event-list' ); ?></th>
-                        <th style="width:60px"></th>
+                        <th style="width:80px"></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -416,6 +498,14 @@ class MiraAdminBookings {
                             ), admin_url( 'edit.php?post_type=mira_event' ) ),
                             'mira_delete_booking_' . $b->id
                         );
+                        $resend_url = wp_nonce_url(
+                            add_query_arg( array(
+                                'page'       => 'mira-bookings',
+                                'action'     => 'resend_tickets',
+                                'booking_id' => $b->id,
+                            ), admin_url( 'edit.php?post_type=mira_event' ) ),
+                            'mira_resend_tickets_' . $b->id
+                        );
                         $lead = $leads_by_id[ $b->id ] ?? null;
                     ?>
                     <tr>
@@ -440,6 +530,12 @@ class MiraAdminBookings {
                         <td><?php echo $this->status_badge( $b->status ); ?></td>
                         <td><?php echo esc_html( date_i18n( 'd M Y H:i', strtotime( $b->created_at ) ) ); ?></td>
                         <td>
+                            <?php if ( $b->status === 'complete' ) : ?>
+                                <a href="<?php echo esc_url( $resend_url ); ?>"
+                                   onclick="return confirm('<?php esc_attr_e( 'Re-send the ticket email to every attendee on this booking? A copy will be sent to the site admin.', 'mira-event-list' ); ?>')">
+                                    <?php esc_html_e( 'Resend', 'mira-event-list' ); ?>
+                                </a><br>
+                            <?php endif; ?>
                             <a href="<?php echo esc_url( $delete_url ); ?>"
                                style="color:#b00"
                                onclick="return confirm('<?php esc_attr_e( 'Delete this booking and all its attendee records? This cannot be undone.', 'mira-event-list' ); ?>')">
@@ -484,15 +580,35 @@ class MiraAdminBookings {
             ), admin_url( 'edit.php?post_type=mira_event' ) ),
             'mira_delete_booking_' . $booking->id
         );
+        $resend_url = wp_nonce_url(
+            add_query_arg( array(
+                'page'       => 'mira-bookings',
+                'action'     => 'resend_tickets',
+                'booking_id' => $booking->id,
+            ), admin_url( 'edit.php?post_type=mira_event' ) ),
+            'mira_resend_tickets_' . $booking->id
+        );
         ?>
         <div class="wrap">
             <h1>
                 <?php echo esc_html( $booking->booking_reference ); ?>
                 <?php echo $this->status_badge( $booking->status ); ?>
             </h1>
+
+            <?php if ( isset( $_GET['resent'] ) ) : ?>
+                <?php echo $this->resent_notice( intval( $_GET['resent'] ) ); ?>
+            <?php endif; ?>
+
             <p>
                 <a href="<?php echo esc_url( $back_url ); ?>">← <?php esc_html_e( 'Back to Bookings', 'mira-event-list' ); ?></a>
                 &nbsp;&nbsp;
+                <?php if ( ! empty( $attendees ) ) : ?>
+                    <a href="<?php echo esc_url( $resend_url ); ?>"
+                       onclick="return confirm('<?php esc_attr_e( 'Re-send the ticket email to every attendee on this booking? A copy will be sent to the site admin.', 'mira-event-list' ); ?>')">
+                        <?php esc_html_e( 'Resend tickets', 'mira-event-list' ); ?>
+                    </a>
+                    &nbsp;&nbsp;
+                <?php endif; ?>
                 <a href="<?php echo esc_url( $delete_url ); ?>"
                    style="color:#b00"
                    onclick="return confirm('<?php esc_attr_e( 'Delete this booking and all its attendee records? This cannot be undone.', 'mira-event-list' ); ?>')">
@@ -658,6 +774,28 @@ class MiraAdminBookings {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
+
+    private function resent_notice( $count ) {
+        if ( $count < 1 ) {
+            return '<div class="notice notice-warning is-dismissible"><p>'
+                . esc_html__( 'No tickets were re-sent — this booking has no attendee details yet.', 'mira-event-list' )
+                . '</p></div>';
+        }
+
+        $admin_email = get_option( 'admin_email' );
+
+        return '<div class="notice notice-success is-dismissible"><p>' . esc_html( sprintf(
+            /* translators: 1: number of tickets, 2: admin email address */
+            _n(
+                '%1$d ticket re-sent. A copy was also sent to %2$s.',
+                '%1$d tickets re-sent. A copy was also sent to %2$s.',
+                $count,
+                'mira-event-list'
+            ),
+            $count,
+            $admin_email
+        ) ) . '</p></div>';
+    }
 
     private function status_badge( $status ) {
         $colours = array(

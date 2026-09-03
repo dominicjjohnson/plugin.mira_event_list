@@ -3,7 +3,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 class MiraEmails {
 
-    public function send_ticket( array $attendee, $booking, $event ) {
+    public function send_ticket( array $attendee, $booking, $event, array $extra_headers = array() ) {
         $from_name   = get_option( 'mira_ticket_from_name', get_bloginfo( 'name' ) );
         $from_email  = get_option( 'mira_ticket_from_email', get_option( 'admin_email' ) );
         $subject_tpl = get_option( 'mira_ticket_email_subject', 'Your ticket for {event_name}' );
@@ -18,6 +18,10 @@ class MiraEmails {
             'Content-Type: text/html; charset=UTF-8',
             'From: ' . wp_specialchars_decode( $from_name, ENT_QUOTES ) . ' <' . $from_email . '>',
         );
+
+        if ( ! empty( $extra_headers ) ) {
+            $headers = array_merge( $headers, $extra_headers );
+        }
 
         $message = $this->build_email( $attendee, $booking, $event, $formatted_date, $event_location );
         $sent    = wp_mail( $attendee['email'], $subject, $message, $headers );

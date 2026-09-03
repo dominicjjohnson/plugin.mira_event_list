@@ -2,6 +2,15 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.5.0] - 2026-09-03
+
+### Added
+- **Bookings → Resend**: each completed booking now has a "Resend" link (in the
+  bookings list and on the booking detail page) that re-sends the ticket email to
+  every attendee on that booking. A copy of each ticket is CC'd to the site admin
+  address (Settings → General → Administration Email Address). Each attendee's
+  "Ticket sent" timestamp is updated on a successful resend.
+
 ## [2.4.0] - 2026-09-03
 
 ### Added
