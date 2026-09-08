@@ -2,6 +2,60 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.6.0] - 2026-09-08
+
+### Added
+- **Events → Guide**: an in-admin reference page covering every shortcode
+  (`[mira_event_list]`, `[mira_next_event]`, `[mira_ticket_menu]`,
+  `[mira_booking_success]`), the per-event ticketing options, the dynamic
+  Tickets menu, the Bookings screen, manual/cash bookings, the settings
+  sections, and developer hooks. README.md updated to match.
+- **Dynamic "Tickets" menu**. The dropdown of recent events no longer has to be
+  maintained by hand.
+  - Add the CSS class `mira-ticket-menu` to the parent menu item under
+    Appearance → Menus (or point a Custom Link at `#mira-tickets`), and the
+    plugin fills it with the next few upcoming events, soonest first.
+  - Tune it with filters: `mira_ticket_menu_count` (default 6),
+    `mira_ticket_menu_show_date` (default true),
+    `mira_ticket_menu_tickets_only` (default false).
+  - New shortcode `[mira_ticket_menu]` renders the same list as a plain `<ul>`
+    for widgets, blocks, or page content — attributes: `limit` (6),
+    `tickets_only` (0), `show_date` (1), `past` (0), `class`, `empty`.
+- **Maximum tickets per event** (Ticketing meta box → "Maximum Tickets"). Leave
+  blank / 0 for unlimited.
+  - **"Only X tickets left"** shows on the booking form once the remaining count
+    falls within the final 25% of the maximum. This count includes pending
+    (unpaid) orders, so it reflects tickets currently held, not just sold.
+  - **"SOLD OUT"** replaces the booking form (on the single event page,
+    `[mira_next_event]`, and the `[mira_event_list]` grid) once the number of
+    **paid** tickets reaches the maximum. Pending orders do not trigger sold-out.
+  - The ticket-quantity selector is capped to the number still available, and
+    the checkout endpoint rejects any order that would oversell paid tickets.
+  - The Ticketing meta box shows a live "Sold so far: N paid, M including
+    pending (of MAX)" readout.
+- **Bookings → Add Manual Booking**: create a booking by hand for people who pay
+  cash, by card in person, by bank transfer, or who come in free / complimentary.
+  - Pick the event, set the ticket price (pre-filled from the event, editable),
+    add one row per attendee (name + email), and choose a payment method.
+  - **Payment received** unticked → the booking is saved as **pending** and no
+    tickets go out. When the money arrives, **Mark as paid & send tickets** (on
+    the booking and in the list) flips it to paid and emails every attendee who
+    hasn't had a ticket yet.
+  - **Payment received** ticked → the booking is saved as `complete` and, if
+    "Email tickets now" is left on, each attendee is emailed their ticket
+    straight away (optionally CC'd to the site admin).
+  - Records a free-text note (e.g. "paid cash on the door, collected by …").
+  - The existing **Resend** action works on completed manual bookings, and paid
+    manual bookings count toward the revenue summary.
+  - Buyer/attendee emails sync to Mailjet when Mailjet Sync is enabled (on
+    payment), exactly like Stripe bookings.
+- **Bookings list**: new "Method" column (with an "UNPAID" flag and a
+  "Mark paid & send" action for manual bookings awaiting payment) and a
+  payment-method filter.
+- **Booking detail**: payment method, note, a "Mark as paid & send tickets"
+  button for unpaid manual bookings, and a "mark unpaid" toggle.
+- **CSV export**: new Payment Method, Payment Received, and Note columns.
+
 ## [2.5.0] - 2026-09-03
 
 ### Added

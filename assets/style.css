@@ -192,3 +192,30 @@
     color: #666;
     margin: 20px 0;
 }
+
+/* ── [mira_ticket_menu] list ──────────────────────────────────────── */
+ul.mira-ticket-menu {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+ul.mira-ticket-menu > li {
+    margin: 0;
+}
+
+ul.mira-ticket-menu > li > a {
+    display: block;
+    padding: 6px 0;
+    text-decoration: none;
+}
+
+.mira-ticket-menu-date {
+    opacity: .65;
+    font-size: .9em;
+}
+
+.mira-ticket-menu-empty {
+    opacity: .65;
+    font-style: italic;
+}

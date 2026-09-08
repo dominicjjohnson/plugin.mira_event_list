@@ -27,6 +27,58 @@ class MiraBookings {
         ) );
     }
 
+    /**
+     * Ticket-capacity snapshot for an event.
+     *
+     * - `sold_paid`      tickets on paid + complete bookings (drives SOLD OUT)
+     * - `sold_all`       tickets on pending + paid + complete bookings
+     * - `remaining`      max − sold_all, floored at 0 (the public "X left" count)
+     * - `sold_out`       true once sold_paid reaches max
+     * - `show_remaining` true when not sold out and remaining is within the
+     *                    final 25% of max (i.e. remaining ≤ ceil(max × 0.25))
+     *
+     * When no maximum is set (`max` ≤ 0) the event is unlimited: `sold_out` and
+     * `show_remaining` are both false.
+     */
+    public static function event_capacity( $event_id ) {
+        global $wpdb;
+
+        $max = (int) get_post_meta( $event_id, '_max_tickets', true );
+
+        $cap = array(
+            'max'            => $max,
+            'sold_paid'      => 0,
+            'sold_all'       => 0,
+            'remaining'      => 0,
+            'sold_out'       => false,
+            'show_remaining' => false,
+        );
+
+        if ( $max <= 0 ) {
+            return $cap;
+        }
+
+        $table = $wpdb->prefix . 'mira_bookings';
+
+        $cap['sold_paid'] = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COALESCE( SUM( quantity ), 0 ) FROM $table
+             WHERE event_id = %d AND status IN ( 'paid', 'complete' )",
+            $event_id
+        ) );
+
+        $cap['sold_all'] = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COALESCE( SUM( quantity ), 0 ) FROM $table
+             WHERE event_id = %d AND status IN ( 'pending', 'paid', 'complete' )",
+            $event_id
+        ) );
+
+        $cap['remaining']      = max( 0, $max - $cap['sold_all'] );
+        $cap['sold_out']       = ( $cap['sold_paid'] >= $max );
+        $cap['show_remaining'] = ( ! $cap['sold_out'] && $cap['remaining'] <= (int) ceil( $max * 0.25 ) );
+
+        return $cap;
+    }
+
     private function generate_booking_reference() {
         global $wpdb;
         $table = $wpdb->prefix . 'mira_bookings';
@@ -73,6 +125,28 @@ class MiraBookings {
 
         if ( ! get_post_meta( $event_id, '_tickets_enabled', true ) ) {
             wp_send_json_error( __( 'Tickets are not available for this event.', 'mira-event-list' ) );
+        }
+
+        // Capacity check. SOLD OUT is based on paid tickets; block anything that
+        // would push paid sales past the maximum.
+        $capacity = self::event_capacity( $event_id );
+        if ( $capacity['max'] > 0 ) {
+            if ( $capacity['sold_out'] ) {
+                wp_send_json_error( __( 'Sorry, this event is now sold out.', 'mira-event-list' ) );
+            }
+            $left = $capacity['max'] - $capacity['sold_paid'];
+            if ( $quantity > $left ) {
+                wp_send_json_error( sprintf(
+                    /* translators: %d: tickets still available */
+                    _n(
+                        'Sorry, only %d ticket is still available for this event.',
+                        'Sorry, only %d tickets are still available for this event.',
+                        $left,
+                        'mira-event-list'
+                    ),
+                    $left
+                ) );
+            }
         }
 
         $ticket_price   = floatval( get_post_meta( $event_id, '_ticket_price', true ) );

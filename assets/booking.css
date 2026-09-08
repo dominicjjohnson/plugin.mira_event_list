@@ -117,6 +117,34 @@
     color: inherit;
 }
 
+/* ── Capacity: tickets left / sold out ─────────────────────────────── */
+
+.mira-tickets-left {
+    margin: 0 0 10px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    background: #fff4e5;
+    border: 1px solid #f0c990;
+    color: #a15c00;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+}
+
+.mira-sold-out {
+    margin-top: auto;
+    padding: 12px 16px;
+    border-radius: 6px;
+    background: #f5f5f5;
+    border: 2px solid #d0d0d0;
+    color: #b00;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-align: center;
+}
+
 /* ── Success page ──────────────────────────────────────────────────── */
 
 .mira-success-page {

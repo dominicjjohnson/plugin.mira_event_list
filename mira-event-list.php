@@ -3,7 +3,7 @@
  * Plugin Name: Mira Event List
  * Plugin URI: https://github.com/dominicjjohnson/plugin.mira_event_list
  * Description: A WordPress plugin to manage events with custom post type, shortcode display, and Stripe ticket purchasing.
- * Version: 2.5.0
+ * Version: 2.6.0
  * Author: Miramedia / Dominic Johnson
  * Author URI: https://about.me/dominicjjohnson
  * License: GPL v2 or later
@@ -12,7 +12,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'MIRA_EVENT_LIST_VERSION', '2.5.0' );
+define( 'MIRA_EVENT_LIST_VERSION', '2.6.0' );
 define( 'MIRA_EVENT_LIST_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'MIRA_EVENT_LIST_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -45,6 +45,7 @@ class MiraEventList {
         add_action( 'admin_init',       array( $this, 'settings_init' ) );
         add_action( 'after_setup_theme', array( $this, 'add_image_sizes' ) );
         add_filter( 'the_content',       array( $this, 'event_detail_content' ) );
+        add_filter( 'wp_get_nav_menu_items', array( $this, 'nav_menu_ticket_items' ), 10, 3 );
         add_filter( 'manage_mira_event_posts_columns',       array( $this, 'event_admin_columns' ) );
         add_action( 'manage_mira_event_posts_custom_column', array( $this, 'event_admin_column_content' ), 10, 2 );
 
@@ -68,7 +69,7 @@ class MiraEventList {
                 'auth_callback' => '__return_true',
             ) );
         }
-        foreach ( array( '_event_post_category', '_event_sponsor_type' ) as $key ) {
+        foreach ( array( '_event_post_category', '_event_sponsor_type', '_max_tickets' ) as $key ) {
             register_post_meta( 'mira_event', $key, array(
                 'show_in_rest'  => true,
                 'single'        => true,
@@ -244,7 +245,9 @@ class MiraEventList {
         $tickets_enabled = get_post_meta( $post->ID, '_tickets_enabled', true );
         $ticket_price    = get_post_meta( $post->ID, '_ticket_price', true );
         $enable_donation = get_post_meta( $post->ID, '_enable_donation', true );
+        $max_tickets     = (int) get_post_meta( $post->ID, '_max_tickets', true );
         $mailjet_tag     = get_post_meta( $post->ID, '_mailjet_event_tag', true );
+        $capacity        = MiraBookings::event_capacity( $post->ID );
         $mailjet_auto    = MiraMailjet::generate_event_tag( $post->ID );
         ?>
         <table class="form-table">
@@ -266,6 +269,30 @@ class MiraEventList {
                            value="<?php echo esc_attr( $ticket_price ); ?>"
                            step="0.01" min="0" style="width:100px;">
                     <p class="description"><?php esc_html_e( 'Price in GBP per ticket, e.g. 25.00', 'mira-event-list' ); ?></p>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="max_tickets"><?php esc_html_e( 'Maximum Tickets', 'mira-event-list' ); ?></label></th>
+                <td>
+                    <input type="number" id="max_tickets" name="max_tickets"
+                           value="<?php echo $max_tickets ? esc_attr( $max_tickets ) : ''; ?>"
+                           step="1" min="0" style="width:100px;">
+                    <p class="description">
+                        <?php esc_html_e( 'Total tickets available for this event. Leave blank or 0 for unlimited. The event shows "SOLD OUT" once this many paid tickets are sold, and a "tickets left" count appears in the final 25%.', 'mira-event-list' ); ?>
+                        <?php if ( $max_tickets > 0 ) : ?>
+                            <br>
+                            <strong><?php printf(
+                                /* translators: 1: paid tickets, 2: tickets incl. pending, 3: maximum */
+                                esc_html__( 'Sold so far: %1$d paid, %2$d including pending orders (of %3$d).', 'mira-event-list' ),
+                                (int) $capacity['sold_paid'],
+                                (int) $capacity['sold_all'],
+                                (int) $capacity['max']
+                            ); ?></strong>
+                            <?php if ( $capacity['sold_out'] ) : ?>
+                                <span style="color:#b00;font-weight:700"><?php esc_html_e( '— SOLD OUT', 'mira-event-list' ); ?></span>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                    </p>
                 </td>
             </tr>
             <tr>
@@ -373,6 +400,9 @@ class MiraEventList {
         update_post_meta( $post_id, '_tickets_enabled', isset( $_POST['tickets_enabled'] ) ? '1' : '' );
         if ( isset( $_POST['ticket_price'] ) ) {
             update_post_meta( $post_id, '_ticket_price', (string) floatval( $_POST['ticket_price'] ) );
+        }
+        if ( isset( $_POST['max_tickets'] ) ) {
+            update_post_meta( $post_id, '_max_tickets', max( 0, intval( $_POST['max_tickets'] ) ) );
         }
         update_post_meta( $post_id, '_enable_donation', isset( $_POST['enable_donation'] ) ? '1' : '' );
 
@@ -693,6 +723,36 @@ class MiraEventList {
         return $content . $this->render_event_extras( get_the_ID() );
     }
 
+    // ── Ticket capacity helpers ─────────────────────────────────────────
+
+    private function sold_out_notice() {
+        return '<div class="mira-sold-out">' . esc_html__( 'SOLD OUT', 'mira-event-list' ) . '</div>';
+    }
+
+    private function tickets_left_notice( $cap ) {
+        if ( empty( $cap['show_remaining'] ) ) {
+            return '';
+        }
+        $n = (int) $cap['remaining'];
+        $msg = $n > 0
+            ? sprintf(
+                /* translators: %d: tickets remaining */
+                _n( 'Only %d ticket left', 'Only %d tickets left', $n, 'mira-event-list' ),
+                $n
+            )
+            : __( 'Last few tickets — almost gone', 'mira-event-list' );
+
+        return '<p class="mira-tickets-left">' . esc_html( $msg ) . '</p>';
+    }
+
+    /** Highest quantity a buyer may pick, capped to what's left. */
+    private function booking_qty_max( $cap ) {
+        if ( empty( $cap['max'] ) ) {
+            return 10;
+        }
+        return max( 1, min( 10, (int) $cap['remaining'] ) );
+    }
+
     private function render_event_extras( $post_id ) {
         $charities = json_decode( get_post_meta( $post_id, '_event_charities', true ) ?: '[]', true ) ?: array();
         $people    = json_decode( get_post_meta( $post_id, '_event_people',    true ) ?: '[]', true ) ?: array();
@@ -701,6 +761,7 @@ class MiraEventList {
         $tickets_enabled   = get_post_meta( $post_id, '_tickets_enabled', true );
         $ticket_price      = floatval( get_post_meta( $post_id, '_ticket_price', true ) );
         $enable_donation   = get_post_meta( $post_id, '_enable_donation', true );
+        $capacity          = MiraBookings::event_capacity( $post_id );
         $event_link        = get_post_meta( $post_id, '_event_link', true );
         $button_color      = get_option( 'mira_event_button_color', '#28a745' );
         $button_text_color = get_option( 'mira_event_button_text_color', '#fff' );
@@ -794,9 +855,13 @@ class MiraEventList {
             <?php endif; ?>
 
             <div class="mira-event-booking-section">
-                <?php if ( $tickets_enabled ) :
+                <?php if ( $tickets_enabled && $capacity['sold_out'] ) : ?>
+                    <?php echo $this->sold_out_notice(); ?>
+                <?php elseif ( $tickets_enabled ) :
                     $btn_label = '£' . number_format( $ticket_price, 2 ) . ' per ticket — Book Now';
+                    $qty_max   = $this->booking_qty_max( $capacity );
                 ?>
+                    <?php echo $this->tickets_left_notice( $capacity ); ?>
                     <form class="mira-booking-form"
                           data-event-id="<?php echo esc_attr( $post_id ); ?>"
                           data-ajax-url="<?php echo esc_url( $ajax_url ); ?>"
@@ -806,7 +871,7 @@ class MiraEventList {
                             <div class="mira-qty-wrap">
                                 <label><?php esc_html_e( 'Tickets', 'mira-event-list' ); ?></label>
                                 <select name="quantity" class="mira-qty-select">
-                                    <?php for ( $i = 1; $i <= 10; $i++ ) : ?>
+                                    <?php for ( $i = 1; $i <= $qty_max; $i++ ) : ?>
                                         <option value="<?php echo $i; ?>"><?php echo $i; ?></option>
                                     <?php endfor; ?>
                                 </select>
@@ -875,6 +940,7 @@ class MiraEventList {
         $tickets_enabled   = get_post_meta( $post_id, '_tickets_enabled', true );
         $ticket_price      = floatval( get_post_meta( $post_id, '_ticket_price', true ) );
         $enable_donation   = get_post_meta( $post_id, '_enable_donation', true );
+        $capacity          = MiraBookings::event_capacity( $post_id );
         $button_color      = get_option( 'mira_event_button_color', '#28a745' );
         $button_text_color = get_option( 'mira_event_button_text_color', '#fff' );
         $ajax_url          = admin_url( 'admin-ajax.php' );
@@ -892,9 +958,13 @@ class MiraEventList {
                 <a href="<?php echo esc_url( $permalink ); ?>"><?php echo esc_html( $title ); ?></a>
             </h3>
 
-            <?php if ( $tickets_enabled ) :
+            <?php if ( $tickets_enabled && $capacity['sold_out'] ) : ?>
+                <?php echo $this->sold_out_notice(); ?>
+            <?php elseif ( $tickets_enabled ) :
                 $btn_label = '£' . number_format( $ticket_price, 2 ) . ' per ticket — Book Now';
+                $qty_max   = $this->booking_qty_max( $capacity );
             ?>
+                <?php echo $this->tickets_left_notice( $capacity ); ?>
                 <form class="mira-booking-form"
                       data-event-id="<?php echo esc_attr( $post_id ); ?>"
                       data-ajax-url="<?php echo esc_url( $ajax_url ); ?>"
@@ -904,7 +974,7 @@ class MiraEventList {
                         <div class="mira-qty-wrap">
                             <label><?php esc_html_e( 'Tickets', 'mira-event-list' ); ?></label>
                             <select name="quantity" class="mira-qty-select">
-                                <?php for ( $i = 1; $i <= 10; $i++ ) : ?>
+                                <?php for ( $i = 1; $i <= $qty_max; $i++ ) : ?>
                                     <option value="<?php echo $i; ?>"><?php echo $i; ?></option>
                                 <?php endfor; ?>
                             </select>
@@ -1023,6 +1093,202 @@ class MiraEventList {
     public function register_shortcode() {
         add_shortcode( 'mira_event_list',  array( $this, 'event_list_shortcode' ) );
         add_shortcode( 'mira_next_event',  array( $this, 'event_next_shortcode' ) );
+        add_shortcode( 'mira_ticket_menu', array( $this, 'ticket_menu_shortcode' ) );
+    }
+
+    // ── Ticket menu (dynamic list of upcoming events) ───────────────────
+
+    /**
+     * Upcoming events, soonest first, for the Tickets menu / shortcode.
+     *
+     * @return WP_Post[]
+     */
+    private function ticket_menu_events( $limit = 6, $tickets_only = false, $include_past = false ) {
+        static $cache = array();
+        $cache_key = (int) $limit . '|' . (int) $tickets_only . '|' . (int) $include_past;
+        if ( isset( $cache[ $cache_key ] ) ) {
+            return $cache[ $cache_key ];
+        }
+
+        $meta_query = array();
+
+        if ( ! $include_past ) {
+            $meta_query[] = array(
+                'key'     => '_event_date',
+                'value'   => date( 'Y-m-d' ),
+                'compare' => '>=',
+                'type'    => 'DATE',
+            );
+        }
+        if ( $tickets_only ) {
+            $meta_query[] = array(
+                'key'     => '_tickets_enabled',
+                'value'   => '1',
+            );
+        }
+        if ( count( $meta_query ) > 1 ) {
+            $meta_query['relation'] = 'AND';
+        }
+
+        $args = array(
+            'post_type'      => 'mira_event',
+            'post_status'    => 'publish',
+            'posts_per_page' => $limit > 0 ? (int) $limit : -1,
+            'meta_key'       => '_event_date',
+            'orderby'        => 'meta_value',
+            'order'          => 'ASC',
+            'no_found_rows'  => true,
+        );
+        if ( $meta_query ) {
+            $args['meta_query'] = $meta_query;
+        }
+
+        $q = new WP_Query( $args );
+
+        $cache[ $cache_key ] = $q->posts;
+        return $q->posts;
+    }
+
+    /** Short human date for an event: the display date if set, else the event date. */
+    private function event_short_date( $event_id ) {
+        $display = get_post_meta( $event_id, '_display_date', true );
+        if ( $display ) {
+            return $display;
+        }
+        $date = get_post_meta( $event_id, '_event_date', true );
+        return $date ? date_i18n( 'j M Y', strtotime( $date ) ) : '';
+    }
+
+    /**
+     * [mira_ticket_menu] — a plain <ul> of upcoming events, for menus that
+     * accept shortcodes, widgets, or page content.
+     *
+     * Attributes: limit (6), tickets_only (0), show_date (1), past (0),
+     * class (""), empty ("No upcoming events").
+     */
+    public function ticket_menu_shortcode( $atts ) {
+        $atts = shortcode_atts( array(
+            'limit'        => 6,
+            'tickets_only' => 0,
+            'show_date'    => 1,
+            'past'         => 0,
+            'class'        => '',
+            'empty'        => __( 'No upcoming events', 'mira-event-list' ),
+        ), $atts, 'mira_ticket_menu' );
+
+        $events  = $this->ticket_menu_events(
+            (int) $atts['limit'],
+            (bool) intval( $atts['tickets_only'] ),
+            (bool) intval( $atts['past'] )
+        );
+        $classes = trim( 'mira-ticket-menu ' . $atts['class'] );
+
+        if ( empty( $events ) ) {
+            return '<ul class="' . esc_attr( $classes ) . '"><li class="mira-ticket-menu-empty">'
+                . esc_html( $atts['empty'] ) . '</li></ul>';
+        }
+
+        $show_date = (bool) intval( $atts['show_date'] );
+
+        ob_start();
+        echo '<ul class="' . esc_attr( $classes ) . '">';
+        foreach ( $events as $ev ) {
+            $date = $show_date ? $this->event_short_date( $ev->ID ) : '';
+            printf(
+                '<li class="mira-ticket-menu-item"><a href="%s">%s%s</a></li>',
+                esc_url( get_permalink( $ev ) ),
+                esc_html( get_the_title( $ev ) ),
+                $date ? ' <span class="mira-ticket-menu-date">' . esc_html( $date ) . '</span>' : ''
+            );
+        }
+        echo '</ul>';
+        return ob_get_clean();
+    }
+
+    /** Is this nav-menu item the one that should hold the dynamic event list? */
+    private function is_ticket_menu_item( $item ) {
+        $classes = array_map( 'strtolower', (array) ( isset( $item->classes ) ? $item->classes : array() ) );
+        if ( in_array( 'mira-ticket-menu', $classes, true ) ) {
+            return true;
+        }
+        $url = strtolower( trim( (string) ( isset( $item->url ) ? $item->url : '' ) ) );
+        return $url === '#mira-tickets';
+    }
+
+    /**
+     * Inject upcoming events as sub-items under any nav-menu item tagged with
+     * the CSS class "mira-ticket-menu" (or a custom link to "#mira-tickets").
+     *
+     * Filters: `mira_ticket_menu_count` (int, default 6),
+     *          `mira_ticket_menu_show_date` (bool, default true),
+     *          `mira_ticket_menu_tickets_only` (bool, default false).
+     */
+    public function nav_menu_ticket_items( $items, $menu, $args = array() ) {
+        if ( is_admin() || empty( $items ) || ! is_array( $items ) ) {
+            return $items;
+        }
+
+        $marked = false;
+        foreach ( $items as $item ) {
+            if ( $this->is_ticket_menu_item( $item ) ) {
+                $marked = true;
+                break;
+            }
+        }
+        if ( ! $marked ) {
+            return $items;
+        }
+
+        $limit        = (int) apply_filters( 'mira_ticket_menu_count', 6 );
+        $show_date    = (bool) apply_filters( 'mira_ticket_menu_show_date', true );
+        $tickets_only = (bool) apply_filters( 'mira_ticket_menu_tickets_only', false );
+        $events       = $this->ticket_menu_events( $limit, $tickets_only );
+
+        $rebuilt = array();
+        $order   = 0;
+
+        foreach ( $items as $item ) {
+            $item->menu_order = ++$order;
+            $rebuilt[]        = $item;
+
+            if ( empty( $events ) || ! $this->is_ticket_menu_item( $item ) ) {
+                continue;
+            }
+
+            foreach ( $events as $ev ) {
+                $title = get_the_title( $ev );
+                if ( $show_date ) {
+                    $d = $this->event_short_date( $ev->ID );
+                    if ( $d ) {
+                        $title .= ' – ' . $d;
+                    }
+                }
+
+                $child = new stdClass();
+                $child->ID               = 900000000 + (int) $ev->ID;
+                $child->db_id            = $child->ID;
+                $child->menu_item_parent = (string) $item->ID;
+                $child->object_id        = (int) $ev->ID;
+                $child->object           = 'mira_event';
+                $child->type             = 'post_type';
+                $child->type_label       = __( 'Event', 'mira-event-list' );
+                $child->title            = $title;
+                $child->url              = get_permalink( $ev );
+                $child->target           = '';
+                $child->attr_title       = '';
+                $child->description      = '';
+                $child->classes          = array( 'mira-ticket-menu-item' );
+                $child->xfn              = '';
+                $child->current          = false;
+                $child->menu_order       = ++$order;
+                $child->post_type        = 'nav_menu_item';
+                $child->post_status      = 'publish';
+
+                $rebuilt[] = $child;
+            }
+        }
+
+        return $rebuilt;
     }
 
     public function event_list_shortcode( $atts ) {
@@ -1068,6 +1334,7 @@ class MiraEventList {
                 $tickets_enabled = get_post_meta( $post_id, '_tickets_enabled', true );
                 $ticket_price    = floatval( get_post_meta( $post_id, '_ticket_price', true ) );
                 $enable_donation = get_post_meta( $post_id, '_enable_donation', true );
+                $capacity        = MiraBookings::event_capacity( $post_id );
                 $formatted_date  = $event_date ? date( 'j F Y', strtotime( $event_date ) ) : '';
             ?>
                 <div class="mira-event-item">
@@ -1102,9 +1369,13 @@ class MiraEventList {
                         <?php endif; ?>
 
                         <div class="event-goto-button-bottom">
-                            <?php if ( $tickets_enabled ) :
+                            <?php if ( $tickets_enabled && $capacity['sold_out'] ) : ?>
+                                <?php echo $this->sold_out_notice(); ?>
+                            <?php elseif ( $tickets_enabled ) :
                                 $btn_label = '£' . number_format( $ticket_price, 2 ) . ' per ticket — Book Now';
+                                $qty_max   = $this->booking_qty_max( $capacity );
                             ?>
+                                <?php echo $this->tickets_left_notice( $capacity ); ?>
                                 <form class="mira-booking-form"
                                       data-event-id="<?php echo esc_attr( $post_id ); ?>"
                                       data-ajax-url="<?php echo esc_url( $ajax_url ); ?>"
@@ -1115,7 +1386,7 @@ class MiraEventList {
                                         <div class="mira-qty-wrap">
                                             <label for="mira-qty-<?php echo $post_id; ?>"><?php esc_html_e( 'Tickets', 'mira-event-list' ); ?></label>
                                             <select id="mira-qty-<?php echo $post_id; ?>" name="quantity" class="mira-qty-select">
-                                                <?php for ( $i = 1; $i <= 10; $i++ ) : ?>
+                                                <?php for ( $i = 1; $i <= $qty_max; $i++ ) : ?>
                                                     <option value="<?php echo $i; ?>"><?php echo $i; ?></option>
                                                 <?php endfor; ?>
                                             </select>
@@ -1178,6 +1449,15 @@ class MiraEventList {
             'manage_options',
             'mira-event-settings',
             array( $this, 'options_page' )
+        );
+
+        add_submenu_page(
+            'edit.php?post_type=mira_event',
+            __( 'Mira Event List Guide', 'mira-event-list' ),
+            __( 'Guide', 'mira-event-list' ),
+            'edit_posts',
+            'mira-event-guide',
+            array( $this, 'guide_page' )
         );
     }
 
@@ -1403,12 +1683,220 @@ class MiraEventList {
         echo '<p class="description">' . esc_html__( 'Numeric ID of the contact list new bookers are added to (e.g. the TWComedy.club list). See the table above.', 'mira-event-list' ) . '</p>';
     }
 
+    // ── Guide page ───────────────────────────────────────────────────────
+
+    public function guide_page() {
+        $success_page_id = (int) get_option( 'mira_stripe_success_page_id', 0 );
+        $success_link    = $success_page_id ? get_permalink( $success_page_id ) : '';
+        $webhook_url     = rest_url( 'mira/v1/stripe-webhook' );
+        $settings_url    = admin_url( 'edit.php?post_type=mira_event&page=mira-event-settings' );
+        $bookings_url    = admin_url( 'edit.php?post_type=mira_event&page=mira-bookings' );
+        ?>
+        <div class="wrap">
+            <h1><?php esc_html_e( 'Mira Event List — Guide', 'mira-event-list' ); ?></h1>
+            <p style="max-width:820px"><?php
+                printf(
+                    /* translators: %s: plugin version */
+                    esc_html__( 'Reference for shortcodes, event options, bookings and settings. Plugin version %s.', 'mira-event-list' ),
+                    esc_html( MIRA_EVENT_LIST_VERSION )
+                );
+            ?></p>
+
+            <div style="max-width:820px">
+
+            <h2><?php esc_html_e( 'Quick start', 'mira-event-list' ); ?></h2>
+            <ol>
+                <li><?php esc_html_e( 'Create events under Events → Add New. The title is the event name; the Featured Image is the logo. Set the Event Date in the Event Details box.', 'mira-event-list' ); ?></li>
+                <li><?php
+                    printf(
+                        wp_kses( __( 'Put %s on a page to show the grid of upcoming events.', 'mira-event-list' ), array( 'code' => array() ) ),
+                        '<code>[mira_event_list]</code>'
+                    );
+                ?></li>
+                <li><?php
+                    printf(
+                        wp_kses( __( 'To sell tickets: open an event, tick %1$s in the Ticketing box and set a price. Add your Stripe keys under %2$s.', 'mira-event-list' ), array( 'strong' => array(), 'a' => array( 'href' => array() ) ) ),
+                        '<strong>' . esc_html__( 'Enable Ticketing', 'mira-event-list' ) . '</strong>',
+                        '<a href="' . esc_url( $settings_url ) . '">' . esc_html__( 'Events → Settings', 'mira-event-list' ) . '</a>'
+                    );
+                ?></li>
+            </ol>
+
+            <h2><?php esc_html_e( 'Shortcodes', 'mira-event-list' ); ?></h2>
+            <table class="widefat striped" style="margin-bottom:1em">
+                <thead>
+                    <tr>
+                        <th style="width:190px"><?php esc_html_e( 'Shortcode', 'mira-event-list' ); ?></th>
+                        <th><?php esc_html_e( 'What it does', 'mira-event-list' ); ?></th>
+                        <th style="width:280px"><?php esc_html_e( 'Attributes', 'mira-event-list' ); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>[mira_event_list]</code></td>
+                        <td><?php esc_html_e( 'Responsive grid of every upcoming event, soonest first. Each card shows a booking form (when ticketing is on), a "Goto Event" button (when an external link is set), or "SOLD OUT" / "Only X tickets left" based on capacity.', 'mira-event-list' ); ?></td>
+                        <td><code>limit</code> — <?php esc_html_e( 'number of events (default: all)', 'mira-event-list' ); ?></td>
+                    </tr>
+                    <tr>
+                        <td><code>[mira_next_event]</code></td>
+                        <td><?php esc_html_e( 'The single soonest upcoming event as a feature block: banner image, title, and its booking form.', 'mira-event-list' ); ?></td>
+                        <td><?php esc_html_e( 'none', 'mira-event-list' ); ?></td>
+                    </tr>
+                    <tr>
+                        <td><code>[mira_ticket_menu]</code></td>
+                        <td><?php esc_html_e( 'A plain <ul> list of upcoming events (title + date) linking to each event page. For sidebars, blocks, footers, or menu plugins that run shortcodes. For the main nav menu, use the CSS-class method below instead.', 'mira-event-list' ); ?></td>
+                        <td>
+                            <code>limit</code> (6),
+                            <code>tickets_only</code> (0),
+                            <code>show_date</code> (1),
+                            <code>past</code> (0),
+                            <code>class</code> (&quot;&quot;),
+                            <code>empty</code> (&quot;No upcoming events&quot;)
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>[mira_booking_success]</code></td>
+                        <td><?php
+                            esc_html_e( 'The post-payment page: confirms payment, collects each attendee\'s name and email, and emails out the tickets. Added automatically to the "Booking Complete" page on activation — you should not normally place this yourself.', 'mira-event-list' );
+                            if ( $success_link ) {
+                                echo ' <a href="' . esc_url( $success_link ) . '" target="_blank" rel="noopener">' . esc_html__( 'View page', 'mira-event-list' ) . '</a>';
+                            }
+                        ?></td>
+                        <td><?php esc_html_e( 'none', 'mira-event-list' ); ?></td>
+                    </tr>
+                </tbody>
+            </table>
+            <p><strong><?php esc_html_e( 'Examples', 'mira-event-list' ); ?></strong></p>
+            <pre style="background:#f6f7f7;border:1px solid #dcdcde;padding:10px;overflow:auto">[mira_event_list]
+[mira_event_list limit="6"]
+[mira_next_event]
+[mira_ticket_menu limit="8" tickets_only="1"]
+[mira_ticket_menu show_date="0" class="my-footer-list" empty="Nothing on sale right now"]</pre>
+
+            <h2><?php esc_html_e( 'Dynamic "Tickets" menu', 'mira-event-list' ); ?></h2>
+            <p><?php esc_html_e( 'Turn a nav-menu item into a self-updating dropdown of upcoming events:', 'mira-event-list' ); ?></p>
+            <ol>
+                <li><?php esc_html_e( 'Appearance → Menus → Screen Options (top right) → tick "CSS Classes".', 'mira-event-list' ); ?></li>
+                <li><?php
+                    printf(
+                        wp_kses( __( 'Open the parent menu item (e.g. "Tickets") and put %s in the CSS Classes field. Alternatively add a Custom Link pointing at %s.', 'mira-event-list' ), array( 'code' => array() ) ),
+                        '<code>mira-ticket-menu</code>',
+                        '<code>#mira-tickets</code>'
+                    );
+                ?></li>
+                <li><?php esc_html_e( 'Save. The item is filled with the next upcoming events, soonest first. Remove any events you previously added by hand.', 'mira-event-list' ); ?></li>
+            </ol>
+            <p><?php esc_html_e( 'Tune it from your theme\'s functions.php:', 'mira-event-list' ); ?></p>
+            <pre style="background:#f6f7f7;border:1px solid #dcdcde;padding:10px;overflow:auto">add_filter( 'mira_ticket_menu_count', fn() =&gt; 8 );            // how many events (default 6)
+add_filter( 'mira_ticket_menu_show_date', '__return_false' );  // hide the date suffix
+add_filter( 'mira_ticket_menu_tickets_only', '__return_true' ); // ticketed events only</pre>
+
+            <h2><?php esc_html_e( 'Per-event options (Ticketing box)', 'mira-event-list' ); ?></h2>
+            <table class="widefat striped" style="margin-bottom:1em">
+                <tbody>
+                    <tr>
+                        <td style="width:190px"><strong><?php esc_html_e( 'Enable Ticketing', 'mira-event-list' ); ?></strong></td>
+                        <td><?php esc_html_e( 'Replaces the event-link button with a Stripe booking form.', 'mira-event-list' ); ?></td>
+                    </tr>
+                    <tr>
+                        <td><strong><?php esc_html_e( 'Price per Ticket', 'mira-event-list' ); ?></strong></td>
+                        <td><?php esc_html_e( 'In GBP. Used for the booking form and pre-fills the manual-booking price.', 'mira-event-list' ); ?></td>
+                    </tr>
+                    <tr>
+                        <td><strong><?php esc_html_e( 'Maximum Tickets', 'mira-event-list' ); ?></strong></td>
+                        <td><?php esc_html_e( 'Total capacity. "SOLD OUT" shows once paid tickets reach this number. "Only X tickets left" appears once the remaining count is within the final 25% — that count includes pending (unpaid) orders. Blank or 0 = unlimited. The box shows a live "Sold so far" readout.', 'mira-event-list' ); ?></td>
+                    </tr>
+                    <tr>
+                        <td><strong><?php esc_html_e( 'Enable Donations', 'mira-event-list' ); ?></strong></td>
+                        <td><?php esc_html_e( 'Adds an optional donation field to the booking form.', 'mira-event-list' ); ?></td>
+                    </tr>
+                    <tr>
+                        <td><strong><?php esc_html_e( 'Mailjet Tag', 'mira-event-list' ); ?></strong></td>
+                        <td><?php esc_html_e( 'Boolean contact property set in Mailjet on everyone who books this event. Leave blank to use the auto-generated name.', 'mira-event-list' ); ?></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2><?php esc_html_e( 'Bookings', 'mira-event-list' ); ?></h2>
+            <p><?php
+                printf(
+                    wp_kses( __( 'Manage every booking under %s.', 'mira-event-list' ), array( 'a' => array( 'href' => array() ) ) ),
+                    '<a href="' . esc_url( $bookings_url ) . '">' . esc_html__( 'Events → Bookings', 'mira-event-list' ) . '</a>'
+                );
+            ?></p>
+            <ul style="list-style:disc;padding-left:20px">
+                <li><strong><?php esc_html_e( 'Statuses', 'mira-event-list' ); ?>:</strong>
+                    <em><?php esc_html_e( 'pending', 'mira-event-list' ); ?></em> — <?php esc_html_e( 'payment not confirmed (abandoned checkout, or a manual booking awaiting payment)', 'mira-event-list' ); ?>;
+                    <em><?php esc_html_e( 'paid', 'mira-event-list' ); ?></em> — <?php esc_html_e( 'paid, attendee details not yet collected', 'mira-event-list' ); ?>;
+                    <em><?php esc_html_e( 'complete', 'mira-event-list' ); ?></em> — <?php esc_html_e( 'paid and attendee details collected', 'mira-event-list' ); ?>.
+                </li>
+                <li><strong><?php esc_html_e( 'Filters', 'mira-event-list' ); ?>:</strong> <?php esc_html_e( 'by status, event, and payment method.', 'mira-event-list' ); ?></li>
+                <li><strong><?php esc_html_e( 'Revenue Summary', 'mira-event-list' ); ?>:</strong> <?php esc_html_e( 'per-event bookings, tickets and revenue for paid + complete bookings.', 'mira-event-list' ); ?></li>
+                <li><strong><?php esc_html_e( 'Row actions', 'mira-event-list' ); ?>:</strong> <?php esc_html_e( 'Resend tickets (CC\'d to the site admin), Delete, and — for unpaid manual bookings — "Mark paid & send".', 'mira-event-list' ); ?></li>
+                <li><strong><?php esc_html_e( 'Export CSV', 'mira-event-list' ); ?>:</strong> <?php esc_html_e( 'one row per attendee, respecting the current filters.', 'mira-event-list' ); ?></li>
+                <li><strong><?php esc_html_e( 'Sync all to Mailjet', 'mira-event-list' ); ?>:</strong> <?php esc_html_e( 'backfill every paid/complete booking (shown only when Mailjet Sync is on).', 'mira-event-list' ); ?></li>
+            </ul>
+
+            <h3><?php esc_html_e( 'Manual / cash bookings', 'mira-event-list' ); ?></h3>
+            <p><?php esc_html_e( 'Use "Add Manual Booking" for people who pay cash, by card in person, by bank transfer, or who come in free.', 'mira-event-list' ); ?></p>
+            <ul style="list-style:disc;padding-left:20px">
+                <li><?php esc_html_e( 'Pick the event and payment method, add one row per attendee (name + email), and a note.', 'mira-event-list' ); ?></li>
+                <li><?php esc_html_e( '"Payment received" unticked → saved as pending, no tickets sent. When the money arrives, use "Mark as paid & send tickets" to complete it and email everyone.', 'mira-event-list' ); ?></li>
+                <li><?php esc_html_e( '"Payment received" ticked → saved as complete; tickets are emailed straight away if "Email tickets now" is left on.', 'mira-event-list' ); ?></li>
+                <li><?php esc_html_e( 'Manual bookings count towards event capacity: pending ones reduce "tickets left", paid ones count towards SOLD OUT.', 'mira-event-list' ); ?></li>
+            </ul>
+
+            <h2><?php esc_html_e( 'Settings (Events → Settings)', 'mira-event-list' ); ?></h2>
+            <table class="widefat striped" style="margin-bottom:1em">
+                <tbody>
+                    <tr>
+                        <td style="width:190px"><strong><?php esc_html_e( 'Button Customisation', 'mira-event-list' ); ?></strong></td>
+                        <td><?php esc_html_e( 'Text, colours and new-tab behaviour for the "Goto Event" button in the grid.', 'mira-event-list' ); ?></td>
+                    </tr>
+                    <tr>
+                        <td><strong><?php esc_html_e( 'Stripe Payments', 'mira-event-list' ); ?></strong></td>
+                        <td>
+                            <?php esc_html_e( 'Test / Live mode, secret keys, and the webhook signing secret. Add this endpoint in your Stripe dashboard (event: checkout.session.completed):', 'mira-event-list' ); ?>
+                            <br><code><?php echo esc_html( $webhook_url ); ?></code>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong><?php esc_html_e( 'Ticket Emails', 'mira-event-list' ); ?></strong></td>
+                        <td><?php
+                            printf(
+                                wp_kses( __( 'From name, from address, and subject line. %s is replaced with the event name.', 'mira-event-list' ), array( 'code' => array() ) ),
+                                '<code>{event_name}</code>'
+                            );
+                        ?></td>
+                    </tr>
+                    <tr>
+                        <td><strong><?php esc_html_e( 'Mailjet Sync', 'mira-event-list' ); ?></strong></td>
+                        <td><?php esc_html_e( 'Enable toggle, API + secret keys, and contact-list ID. When on, buyer and attendee emails are pushed to Mailjet as bookings are paid, tagged per event.', 'mira-event-list' ); ?></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2><?php esc_html_e( 'Developer hooks', 'mira-event-list' ); ?></h2>
+            <table class="widefat striped">
+                <tbody>
+                    <tr><td style="width:260px"><code>mira_ticket_menu_count</code></td><td><?php esc_html_e( 'int — events in the dynamic Tickets menu (default 6).', 'mira-event-list' ); ?></td></tr>
+                    <tr><td><code>mira_ticket_menu_show_date</code></td><td><?php esc_html_e( 'bool — append the date to each Tickets-menu item (default true).', 'mira-event-list' ); ?></td></tr>
+                    <tr><td><code>mira_ticket_menu_tickets_only</code></td><td><?php esc_html_e( 'bool — limit the Tickets menu to events with ticketing enabled (default false).', 'mira-event-list' ); ?></td></tr>
+                </tbody>
+            </table>
+
+            </div>
+        </div>
+        <?php
+    }
+
     // ── Options page ─────────────────────────────────────────────────────
 
     public function options_page() {
         ?>
         <div class="wrap">
             <h1><?php esc_html_e( 'Mira Event List Settings', 'mira-event-list' ); ?></h1>
+            <p><a href="<?php echo esc_url( admin_url( 'edit.php?post_type=mira_event&page=mira-event-guide' ) ); ?>"><?php esc_html_e( '📖 Shortcodes &amp; feature guide', 'mira-event-list' ); ?></a></p>
             <form action="options.php" method="post">
                 <?php
                 settings_fields( 'mira_event_settings' );
