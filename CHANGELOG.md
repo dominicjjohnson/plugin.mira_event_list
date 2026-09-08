@@ -2,6 +2,28 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.6.1] - 2026-09-08
+
+### Fixed
+- **Stripe webhook signature verification.** The single `mira_stripe_webhook_secret`
+  option was prone to being overwritten by browser password-manager autofill (an
+  email address landing in the field), which made every live webhook fail with
+  `400 Invalid signature`. Payment capture is unaffected — Stripe still charges
+  the card, and the success page already confirms payment directly with Stripe —
+  but the webhook is what marks bookings paid server-side and syncs the buyer to
+  Mailjet without the customer returning to the site.
+
+### Changed
+- **Separate webhook signing secrets for test and live mode**
+  (`mira_stripe_test_webhook_secret` / `mira_stripe_live_webhook_secret`), matching
+  how Stripe issues one `whsec_…` per endpoint. A valid legacy value is migrated
+  into the slot for the current mode on upgrade; the old option is still read as a
+  fallback.
+- **Stripe credential fields hardened against autofill** — rendered as plain text
+  with `autocomplete="off"` and password-manager ignore hints, and validated on
+  save: a value with the wrong prefix (`sk_`/`rk_` for keys, `whsec_` for webhook
+  secrets) is rejected with an admin notice and the previous value is kept.
+
 ## [2.6.0] - 2026-09-08
 
 ### Added

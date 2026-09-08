@@ -3,7 +3,7 @@
  * Plugin Name: Mira Event List
  * Plugin URI: https://github.com/dominicjjohnson/plugin.mira_event_list
  * Description: A WordPress plugin to manage events with custom post type, shortcode display, and Stripe ticket purchasing.
- * Version: 2.6.0
+ * Version: 2.6.1
  * Author: Miramedia / Dominic Johnson
  * Author URI: https://about.me/dominicjjohnson
  * License: GPL v2 or later
@@ -12,7 +12,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'MIRA_EVENT_LIST_VERSION', '2.6.0' );
+define( 'MIRA_EVENT_LIST_VERSION', '2.6.1' );
 define( 'MIRA_EVENT_LIST_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'MIRA_EVENT_LIST_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -1484,10 +1484,11 @@ class MiraEventList {
         add_settings_field( 'mira_event_open_new_window',   __( 'Open in New Window', 'mira-event-list' ),  array( $this, 'open_new_window_render' ),   'mira_event_settings', 'mira_button_section' );
 
         // ── Stripe section ───────────────────────────────────────────────
-        register_setting( 'mira_event_settings', 'mira_stripe_mode',            array( 'sanitize_callback' => 'sanitize_text_field' ) );
-        register_setting( 'mira_event_settings', 'mira_stripe_test_secret',     array( 'sanitize_callback' => 'sanitize_text_field' ) );
-        register_setting( 'mira_event_settings', 'mira_stripe_live_secret',     array( 'sanitize_callback' => 'sanitize_text_field' ) );
-        register_setting( 'mira_event_settings', 'mira_stripe_webhook_secret',  array( 'sanitize_callback' => 'sanitize_text_field' ) );
+        register_setting( 'mira_event_settings', 'mira_stripe_mode',                 array( 'sanitize_callback' => 'sanitize_text_field' ) );
+        register_setting( 'mira_event_settings', 'mira_stripe_test_secret',          array( 'sanitize_callback' => array( $this, 'sanitize_stripe_test_key' ) ) );
+        register_setting( 'mira_event_settings', 'mira_stripe_live_secret',          array( 'sanitize_callback' => array( $this, 'sanitize_stripe_live_key' ) ) );
+        register_setting( 'mira_event_settings', 'mira_stripe_test_webhook_secret',  array( 'sanitize_callback' => array( $this, 'sanitize_stripe_test_webhook_secret' ) ) );
+        register_setting( 'mira_event_settings', 'mira_stripe_live_webhook_secret',  array( 'sanitize_callback' => array( $this, 'sanitize_stripe_live_webhook_secret' ) ) );
 
         add_settings_section(
             'mira_stripe_section',
@@ -1496,10 +1497,11 @@ class MiraEventList {
             'mira_event_settings'
         );
 
-        add_settings_field( 'mira_stripe_mode',           __( 'Mode', 'mira-event-list' ),            array( $this, 'stripe_mode_render' ),           'mira_event_settings', 'mira_stripe_section' );
-        add_settings_field( 'mira_stripe_test_secret',    __( 'Test Secret Key', 'mira-event-list' ),  array( $this, 'stripe_test_secret_render' ),    'mira_event_settings', 'mira_stripe_section' );
-        add_settings_field( 'mira_stripe_live_secret',    __( 'Live Secret Key', 'mira-event-list' ),  array( $this, 'stripe_live_secret_render' ),    'mira_event_settings', 'mira_stripe_section' );
-        add_settings_field( 'mira_stripe_webhook_secret', __( 'Webhook Secret', 'mira-event-list' ),   array( $this, 'stripe_webhook_secret_render' ), 'mira_event_settings', 'mira_stripe_section' );
+        add_settings_field( 'mira_stripe_mode',                __( 'Mode', 'mira-event-list' ),                   array( $this, 'stripe_mode_render' ),                 'mira_event_settings', 'mira_stripe_section' );
+        add_settings_field( 'mira_stripe_test_secret',         __( 'Test Secret Key', 'mira-event-list' ),         array( $this, 'stripe_test_secret_render' ),          'mira_event_settings', 'mira_stripe_section' );
+        add_settings_field( 'mira_stripe_live_secret',         __( 'Live Secret Key', 'mira-event-list' ),         array( $this, 'stripe_live_secret_render' ),          'mira_event_settings', 'mira_stripe_section' );
+        add_settings_field( 'mira_stripe_test_webhook_secret', __( 'Test Webhook Secret', 'mira-event-list' ),     array( $this, 'stripe_test_webhook_secret_render' ),  'mira_event_settings', 'mira_stripe_section' );
+        add_settings_field( 'mira_stripe_live_webhook_secret', __( 'Live Webhook Secret', 'mira-event-list' ),     array( $this, 'stripe_live_webhook_secret_render' ),  'mira_event_settings', 'mira_stripe_section' );
 
         // ── Email section ────────────────────────────────────────────────
         register_setting( 'mira_event_settings', 'mira_ticket_from_name',     array( 'sanitize_callback' => 'sanitize_text_field' ) );
@@ -1573,7 +1575,8 @@ class MiraEventList {
         <p><?php esc_html_e( 'Configure your Stripe keys. Keys are stored in the database — do not share them.', 'mira-event-list' ); ?></p>
         <p><strong><?php esc_html_e( 'Webhook URL (add this in your Stripe dashboard → Developers → Webhooks):', 'mira-event-list' ); ?></strong><br>
            <code><?php echo esc_html( $webhook_url ); ?></code><br>
-           <small><?php esc_html_e( 'Listen for the event: checkout.session.completed', 'mira-event-list' ); ?></small></p>
+           <small><?php esc_html_e( 'Listen for the event: checkout.session.completed', 'mira-event-list' ); ?></small><br>
+           <small><?php esc_html_e( 'Test and live mode have separate webhook endpoints with different signing secrets — paste each into the matching field below.', 'mira-event-list' ); ?></small></p>
         <p><strong><?php esc_html_e( 'Booking success page:', 'mira-event-list' ); ?></strong><br>
            <code><?php echo esc_html( $success_url ); ?></code></p>
         <?php
@@ -1589,22 +1592,87 @@ class MiraEventList {
         <?php
     }
 
+    /**
+     * Render a credential input that browser password managers leave alone.
+     *
+     * These fields kept getting clobbered by autofill (a saved email address
+     * landing in the webhook-secret box, breaking signature verification), so
+     * they are plain text with every "don't autofill me" hint we can give.
+     */
+    private function render_secret_field( $name, $value, $description ) {
+        printf(
+            '<input type="text" name="%1$s" value="%2$s" class="regular-text code" '
+            . 'autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" '
+            . 'data-lpignore="true" data-1p-ignore data-form-type="other" data-bwignore>',
+            esc_attr( $name ),
+            esc_attr( $value )
+        );
+        echo '<p class="description">' . esc_html( $description ) . '</p>';
+    }
+
     public function stripe_test_secret_render() {
-        $v = get_option( 'mira_stripe_test_secret', '' );
-        echo '<input type="password" name="mira_stripe_test_secret" value="' . esc_attr( $v ) . '" class="regular-text" autocomplete="new-password">';
-        echo '<p class="description">' . esc_html__( 'Starts with sk_test_', 'mira-event-list' ) . '</p>';
+        $this->render_secret_field( 'mira_stripe_test_secret', get_option( 'mira_stripe_test_secret', '' ), __( 'Starts with sk_test_ (or rk_test_)', 'mira-event-list' ) );
     }
 
     public function stripe_live_secret_render() {
-        $v = get_option( 'mira_stripe_live_secret', '' );
-        echo '<input type="password" name="mira_stripe_live_secret" value="' . esc_attr( $v ) . '" class="regular-text" autocomplete="new-password">';
-        echo '<p class="description">' . esc_html__( 'Starts with sk_live_', 'mira-event-list' ) . '</p>';
+        $this->render_secret_field( 'mira_stripe_live_secret', get_option( 'mira_stripe_live_secret', '' ), __( 'Starts with sk_live_ (or rk_live_)', 'mira-event-list' ) );
     }
 
-    public function stripe_webhook_secret_render() {
-        $v = get_option( 'mira_stripe_webhook_secret', '' );
-        echo '<input type="password" name="mira_stripe_webhook_secret" value="' . esc_attr( $v ) . '" class="regular-text" autocomplete="new-password">';
-        echo '<p class="description">' . esc_html__( 'Signing secret from your Stripe webhook. Starts with whsec_', 'mira-event-list' ) . '</p>';
+    public function stripe_test_webhook_secret_render() {
+        $this->render_secret_field( 'mira_stripe_test_webhook_secret', get_option( 'mira_stripe_test_webhook_secret', '' ), __( 'Signing secret for your Stripe test-mode webhook. Starts with whsec_', 'mira-event-list' ) );
+    }
+
+    public function stripe_live_webhook_secret_render() {
+        $this->render_secret_field( 'mira_stripe_live_webhook_secret', get_option( 'mira_stripe_live_webhook_secret', '' ), __( 'Signing secret for your Stripe live-mode webhook. Starts with whsec_', 'mira-event-list' ) );
+    }
+
+    // ── Stripe credential validation ─────────────────────────────────────
+    //
+    // Reject a value that does not look like the expected Stripe credential
+    // (wrong or missing prefix) and keep whatever was stored before, so a
+    // stray autofill or paste error can't silently break payments/webhooks.
+
+    private function sanitize_stripe_credential( $option, $input, $prefixes, $label ) {
+        $input = sanitize_text_field( $input );
+
+        if ( $input === '' ) {
+            return '';
+        }
+
+        foreach ( (array) $prefixes as $prefix ) {
+            if ( strpos( $input, $prefix ) === 0 ) {
+                return $input;
+            }
+        }
+
+        add_settings_error(
+            'mira_event_settings',
+            $option,
+            sprintf(
+                /* translators: 1: field label, 2: expected prefix list */
+                __( '%1$s was not saved: it must start with %2$s. The previous value has been kept.', 'mira-event-list' ),
+                $label,
+                implode( __( ' or ', 'mira-event-list' ), (array) $prefixes )
+            )
+        );
+
+        return get_option( $option, '' );
+    }
+
+    public function sanitize_stripe_test_key( $input ) {
+        return $this->sanitize_stripe_credential( 'mira_stripe_test_secret', $input, array( 'sk_test_', 'rk_test_' ), __( 'Test Secret Key', 'mira-event-list' ) );
+    }
+
+    public function sanitize_stripe_live_key( $input ) {
+        return $this->sanitize_stripe_credential( 'mira_stripe_live_secret', $input, array( 'sk_live_', 'rk_live_' ), __( 'Live Secret Key', 'mira-event-list' ) );
+    }
+
+    public function sanitize_stripe_test_webhook_secret( $input ) {
+        return $this->sanitize_stripe_credential( 'mira_stripe_test_webhook_secret', $input, array( 'whsec_' ), __( 'Test Webhook Secret', 'mira-event-list' ) );
+    }
+
+    public function sanitize_stripe_live_webhook_secret( $input ) {
+        return $this->sanitize_stripe_credential( 'mira_stripe_live_webhook_secret', $input, array( 'whsec_' ), __( 'Live Webhook Secret', 'mira-event-list' ) );
     }
 
     public function ticket_from_name_render() {
@@ -1856,7 +1924,7 @@ add_filter( 'mira_ticket_menu_tickets_only', '__return_true' ); // ticketed even
                     <tr>
                         <td><strong><?php esc_html_e( 'Stripe Payments', 'mira-event-list' ); ?></strong></td>
                         <td>
-                            <?php esc_html_e( 'Test / Live mode, secret keys, and the webhook signing secret. Add this endpoint in your Stripe dashboard (event: checkout.session.completed):', 'mira-event-list' ); ?>
+                            <?php esc_html_e( 'Test / Live mode, secret keys, and a per-mode webhook signing secret. Add this endpoint in your Stripe dashboard (event: checkout.session.completed):', 'mira-event-list' ); ?>
                             <br><code><?php echo esc_html( $webhook_url ); ?></code>
                         </td>
                     </tr>
@@ -1915,6 +1983,19 @@ new MiraEventList();
 add_action( 'plugins_loaded', function() {
     if ( get_option( 'mira_event_list_db_version' ) !== MIRA_EVENT_LIST_VERSION ) {
         MiraDatabase::create_tables();
+
+        // v2.6.1: webhook signing secret split into per-mode options. Carry a
+        // valid legacy value over to the slot for the currently selected mode.
+        $legacy = get_option( 'mira_stripe_webhook_secret', '' );
+        if ( strpos( (string) $legacy, 'whsec_' ) === 0 ) {
+            $target = get_option( 'mira_stripe_mode', 'test' ) === 'live'
+                ? 'mira_stripe_live_webhook_secret'
+                : 'mira_stripe_test_webhook_secret';
+            if ( get_option( $target, '' ) === '' ) {
+                update_option( $target, $legacy );
+            }
+        }
+
         update_option( 'mira_event_list_db_version', MIRA_EVENT_LIST_VERSION );
     }
 } );

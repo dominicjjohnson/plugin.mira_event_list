@@ -10,6 +10,25 @@ class MiraStripe {
             : get_option( 'mira_stripe_test_secret', '' );
     }
 
+    /**
+     * Webhook signing secret for the current mode.
+     *
+     * Test and live webhooks are separate endpoints in the Stripe dashboard
+     * with different signing secrets, so we store one per mode. Falls back to
+     * the legacy single `mira_stripe_webhook_secret` option for installs that
+     * haven't re-saved settings since the split.
+     */
+    private function get_webhook_secret() {
+        $mode   = get_option( 'mira_stripe_mode', 'test' );
+        $option = $mode === 'live'
+            ? 'mira_stripe_live_webhook_secret'
+            : 'mira_stripe_test_webhook_secret';
+
+        $secret = get_option( $option, '' );
+
+        return $secret !== '' ? $secret : get_option( 'mira_stripe_webhook_secret', '' );
+    }
+
     public function create_checkout_session( $event_id, $quantity, $donation_pence, $booking_id, $booking_reference, $customer_email = '' ) {
         $secret_key = $this->get_secret_key();
         if ( empty( $secret_key ) ) {
@@ -132,7 +151,7 @@ class MiraStripe {
     }
 
     public function verify_webhook( $payload, $sig_header ) {
-        $webhook_secret = get_option( 'mira_stripe_webhook_secret', '' );
+        $webhook_secret = $this->get_webhook_secret();
         if ( empty( $webhook_secret ) || empty( $sig_header ) ) {
             return false;
         }
