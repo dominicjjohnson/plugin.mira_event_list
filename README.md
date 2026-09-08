@@ -103,9 +103,12 @@ card in person / bank transfer / free), add one row per attendee, and a note.
 ### Settings (Events → Settings)
 
 - **Button Customisation** — text/colours/new-tab for the grid's "Goto Event" button.
-- **Stripe Payments** — Test/Live mode, secret keys, webhook signing secret. Add
-  the webhook endpoint `<site>/wp-json/mira/v1/stripe-webhook` in Stripe for the
-  `checkout.session.completed` event.
+- **Stripe Payments** — Test/Live mode, secret keys, and a separate webhook
+  signing secret per mode. Add the webhook endpoint
+  `<site>/wp-json/mira/v1/stripe-webhook` in Stripe for the
+  `checkout.session.completed` event; test and live are distinct endpoints with
+  different `whsec_…` secrets, so paste each into its matching field. Keys and
+  secrets are validated on save (wrong prefix → not saved, previous value kept).
 - **Ticket Emails** — from name/address and subject (`{event_name}` placeholder).
 - **Mailjet Sync** — enable toggle, API + secret keys, contact-list ID.
 
