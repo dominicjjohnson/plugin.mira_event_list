@@ -2,6 +2,26 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.7.0] - 2026-09-10
+
+### Added
+- **`[mira_next_event_rotator]` shortcode.** A split "next event" block: a poster
+  that auto-rotates through every upcoming event's featured image (each links to
+  its event, with clickable dots, pause-on-hover and `prefers-reduced-motion`
+  respected), beside a booking widget fixed on the soonest event. Built for the
+  V3 homepage hero area.
+- **`[mira_events_grid]` shortcode.** Card grid of every upcoming event —
+  banner, date kicker, title, venue and a per-card inline booking form. Reuses
+  the existing `.mira-booking-form` markup and `assets/booking.js`, so multiple
+  forms on one page and the Stripe redirect flow work unchanged. Optional
+  `limit` attribute.
+
+### Changed
+- Booking-form markup extracted into a shared `render_booking_form()` helper
+  (with an optional `show_note` flag) and a shared `upcoming_events_query()`.
+  The single-event page and `[mira_next_event]` still render their own copies —
+  no behavioural change to existing shortcodes.
+
 ## [2.6.1] - 2026-09-08
 
 ### Fixed
