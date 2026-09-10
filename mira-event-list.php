@@ -3,7 +3,7 @@
  * Plugin Name: Mira Event List
  * Plugin URI: https://github.com/dominicjjohnson/plugin.mira_event_list
  * Description: A WordPress plugin to manage events with custom post type, shortcode display, and Stripe ticket purchasing.
- * Version: 2.7.0
+ * Version: 2.7.1
  * Author: Miramedia / Dominic Johnson
  * Author URI: https://about.me/dominicjjohnson
  * License: GPL v2 or later
@@ -12,7 +12,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'MIRA_EVENT_LIST_VERSION', '2.7.0' );
+define( 'MIRA_EVENT_LIST_VERSION', '2.7.1' );
 define( 'MIRA_EVENT_LIST_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'MIRA_EVENT_LIST_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -1287,6 +1287,82 @@ class MiraEventList {
         return ob_get_clean();
     }
 
+    // ── [mira_events_banner] shortcode ─────────────────────────────────
+    //
+    // A single full-width banner that auto-rotates through every upcoming
+    // event's featured image; each slide links to its event. Image only —
+    // no title, no booking. Attributes: interval (ms, default 6000),
+    // ratio (default "16/9"), size (image size, default "large"), limit.
+
+    public function events_banner_shortcode( $atts ) {
+        $atts = shortcode_atts( array(
+            'interval' => 6000,
+            'ratio'    => '16/9',
+            'size'     => 'large',
+            'limit'    => -1,
+        ), $atts, 'mira_events_banner' );
+
+        $events = $this->upcoming_events_query( (int) $atts['limit'] );
+        if ( ! $events->have_posts() ) {
+            return '';
+        }
+
+        $size   = sanitize_key( $atts['size'] ) ?: 'large';
+        $slides = array();
+        foreach ( $events->posts as $ev ) {
+            if ( ! has_post_thumbnail( $ev->ID ) ) {
+                continue;
+            }
+            $slides[] = array(
+                'url'   => get_permalink( $ev->ID ),
+                'title' => get_the_title( $ev->ID ),
+                'img'   => get_the_post_thumbnail( $ev->ID, $size, array(
+                    'alt'     => get_the_title( $ev->ID ),
+                    'loading' => 'lazy',
+                ) ),
+            );
+        }
+        if ( empty( $slides ) ) {
+            return '';
+        }
+
+        $ratio = trim( preg_replace( '~[^0-9/.\s]~', '', (string) $atts['ratio'] ) );
+        if ( '' === $ratio ) {
+            $ratio = '16/9';
+        }
+
+        ob_start();
+        ?>
+        <div class="twc-next-rotator twc-banner-rotator"
+             data-interval="<?php echo esc_attr( max( 1500, (int) $atts['interval'] ) ); ?>"
+             style="--twc-banner-ratio:<?php echo esc_attr( str_replace( '/', ' / ', $ratio ) ); ?>">
+            <div class="twc-rotator" role="group" aria-label="<?php esc_attr_e( 'Upcoming events', 'mira-event-list' ); ?>">
+                <?php foreach ( $slides as $i => $slide ) : ?>
+                    <a class="twc-rotator-slide<?php echo 0 === $i ? ' is-active' : ''; ?>"
+                       href="<?php echo esc_url( $slide['url'] ); ?>"
+                       aria-label="<?php echo esc_attr( $slide['title'] ); ?>"
+                       aria-hidden="<?php echo 0 === $i ? 'false' : 'true'; ?>">
+                        <?php echo $slide['img']; ?>
+                    </a>
+                <?php endforeach; ?>
+                <?php if ( count( $slides ) > 1 ) : ?>
+                    <div class="twc-rotator-dots">
+                        <?php foreach ( $slides as $i => $slide ) : ?>
+                            <button type="button"
+                                    class="twc-rotator-dot<?php echo 0 === $i ? ' is-active' : ''; ?>"
+                                    data-index="<?php echo (int) $i; ?>"
+                                    aria-label="<?php echo esc_attr( sprintf( __( 'Show event %d', 'mira-event-list' ), $i + 1 ) ); ?>"></button>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php
+        wp_reset_postdata();
+        $this->print_rotator_script();
+        return ob_get_clean();
+    }
+
     // ── Scripts ──────────────────────────────────────────────────────────
 
     public function enqueue_scripts() {
@@ -1321,6 +1397,16 @@ class MiraEventList {
             MIRA_EVENT_LIST_URL . 'assets/event-detail.css',
             array(),
             file_exists( $detail_css ) ? filemtime( $detail_css ) : MIRA_EVENT_LIST_VERSION
+        );
+
+        // Rotator mechanics for [mira_events_banner] / [mira_next_event_rotator].
+        // Theme-neutral so the shortcodes work on any active theme.
+        $rotator_css = MIRA_EVENT_LIST_PATH . 'assets/rotator.css';
+        wp_enqueue_style(
+            'mira-rotator-style',
+            MIRA_EVENT_LIST_URL . 'assets/rotator.css',
+            array(),
+            file_exists( $rotator_css ) ? filemtime( $rotator_css ) : MIRA_EVENT_LIST_VERSION
         );
     }
 
@@ -1375,6 +1461,7 @@ class MiraEventList {
         add_shortcode( 'mira_next_event',         array( $this, 'event_next_shortcode' ) );
         add_shortcode( 'mira_next_event_rotator', array( $this, 'next_event_rotator_shortcode' ) );
         add_shortcode( 'mira_events_grid',        array( $this, 'events_grid_shortcode' ) );
+        add_shortcode( 'mira_events_banner',      array( $this, 'events_banner_shortcode' ) );
         add_shortcode( 'mira_ticket_menu',        array( $this, 'ticket_menu_shortcode' ) );
     }
 

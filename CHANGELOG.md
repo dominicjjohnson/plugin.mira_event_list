@@ -2,6 +2,19 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.7.1] - 2026-09-10
+
+### Added
+- **`[mira_events_banner]` shortcode.** A single full-width banner that
+  auto-rotates through every upcoming event's featured image; each slide links
+  to its event. Image only — no title or booking form. Attributes: `interval`
+  (ms, default 6000), `ratio` (default `16/9`), `size` (image size, default
+  `large`), `limit`. Drop it into a page in place of a static image block.
+- **`assets/rotator.css`** — theme-neutral rotator mechanics (positioning,
+  cross-fade, dots) now shipped with the plugin and enqueued on the front end,
+  so `[mira_events_banner]` and `[mira_next_event_rotator]` render correctly on
+  any active theme rather than depending on theme CSS.
+
 ## [2.7.0] - 2026-09-10
 
 ### Added
