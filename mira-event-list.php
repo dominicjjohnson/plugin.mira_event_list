@@ -3,7 +3,7 @@
  * Plugin Name: Mira Event List
  * Plugin URI: https://github.com/dominicjjohnson/plugin.mira_event_list
  * Description: A WordPress plugin to manage events with custom post type, shortcode display, and Stripe ticket purchasing.
- * Version: 2.6.1
+ * Version: 2.7.0
  * Author: Miramedia / Dominic Johnson
  * Author URI: https://about.me/dominicjjohnson
  * License: GPL v2 or later
@@ -12,7 +12,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'MIRA_EVENT_LIST_VERSION', '2.6.1' );
+define( 'MIRA_EVENT_LIST_VERSION', '2.7.0' );
 define( 'MIRA_EVENT_LIST_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'MIRA_EVENT_LIST_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -753,6 +753,119 @@ class MiraEventList {
         return max( 1, min( 10, (int) $cap['remaining'] ) );
     }
 
+    /**
+     * Shared booking widget markup for one event.
+     *
+     * Returns the same `.mira-booking-form` structure the single-event page and
+     * `[mira_next_event]` render (so `assets/booking.js` binds to it unchanged):
+     * a SOLD OUT notice when full, the qty / donation / total / Book Now form
+     * when ticketing is on, an external link button when only `_event_link` is
+     * set, or an empty string when the event has no booking route.
+     *
+     * @param int   $post_id Event post ID.
+     * @param array $args    { @type bool $show_note Show the long Stripe redirect
+     *                         paragraph. Default true. }
+     * @return string
+     */
+    private function render_booking_form( $post_id, $args = array() ) {
+        $args = wp_parse_args( $args, array( 'show_note' => true ) );
+
+        $tickets_enabled = get_post_meta( $post_id, '_tickets_enabled', true );
+        $ticket_price    = floatval( get_post_meta( $post_id, '_ticket_price', true ) );
+        $enable_donation = get_post_meta( $post_id, '_enable_donation', true );
+        $event_link      = get_post_meta( $post_id, '_event_link', true );
+        $capacity        = MiraBookings::event_capacity( $post_id );
+
+        $button_color      = get_option( 'mira_event_button_color', '#28a745' );
+        $button_text_color = get_option( 'mira_event_button_text_color', '#fff' );
+        $button_text       = get_option( 'mira_event_button_text', 'Goto Event' );
+        $ajax_url          = admin_url( 'admin-ajax.php' );
+
+        if ( $tickets_enabled && $capacity['sold_out'] ) {
+            return $this->sold_out_notice();
+        }
+
+        if ( $tickets_enabled ) {
+            $btn_label = '£' . number_format( $ticket_price, 2 ) . ' per ticket — Book Now';
+            $qty_max   = $this->booking_qty_max( $capacity );
+
+            ob_start();
+            echo $this->tickets_left_notice( $capacity );
+            ?>
+            <form class="mira-booking-form"
+                  data-event-id="<?php echo esc_attr( $post_id ); ?>"
+                  data-ajax-url="<?php echo esc_url( $ajax_url ); ?>"
+                  data-nonce="<?php echo esc_attr( wp_create_nonce( 'mira_booking_nonce' ) ); ?>"
+                  data-ticket-price="<?php echo esc_attr( $ticket_price ); ?>">
+                <div class="mira-booking-fields">
+                    <div class="mira-qty-wrap">
+                        <label for="mira-qty-<?php echo esc_attr( $post_id ); ?>"><?php esc_html_e( 'Tickets', 'mira-event-list' ); ?></label>
+                        <select id="mira-qty-<?php echo esc_attr( $post_id ); ?>" name="quantity" class="mira-qty-select">
+                            <?php for ( $i = 1; $i <= $qty_max; $i++ ) : ?>
+                                <option value="<?php echo $i; ?>"><?php echo $i; ?></option>
+                            <?php endfor; ?>
+                        </select>
+                    </div>
+                    <?php if ( $enable_donation ) : ?>
+                        <div class="mira-donation-wrap">
+                            <label for="mira-don-<?php echo esc_attr( $post_id ); ?>"><?php esc_html_e( 'Donation (£)', 'mira-event-list' ); ?></label>
+                            <input id="mira-don-<?php echo esc_attr( $post_id ); ?>" type="number" name="donation" min="0" step="0.50" placeholder="0.00" class="mira-donation-input">
+                        </div>
+                    <?php endif; ?>
+                </div>
+                <div class="mira-booking-total">Total: <strong class="mira-total-amount">£<?php echo number_format( $ticket_price, 2 ); ?></strong></div>
+                <button type="submit" class="mira-book-btn"
+                        data-label="<?php echo esc_attr( $btn_label ); ?>"
+                        style="background-color:<?php echo esc_attr( $button_color ); ?>;color:<?php echo esc_attr( $button_text_color ); ?>;">
+                    <?php echo esc_html( $btn_label ); ?>
+                </button>
+                <div class="mira-stripe-badge">
+                    <svg width="11" height="13" viewBox="0 0 12 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M6 0C4.07 0 2.5 1.57 2.5 3.5V5H1.5A1.5 1.5 0 000 6.5v6A1.5 1.5 0 001.5 14h9A1.5 1.5 0 0012 12.5v-6A1.5 1.5 0 0010.5 5H9.5V3.5C9.5 1.57 7.93 0 6 0zm0 1.5c1.1 0 2 .9 2 2V5H4V3.5c0-1.1.9-2 2-2z" fill="currentColor"/></svg>
+                    Secured by <span class="mira-stripe-wordmark">Stripe</span>
+                </div>
+                <div class="mira-booking-error" role="alert"></div>
+                <?php if ( $args['show_note'] ) : ?>
+                    <p class="mira-booking-note">You will be redirected to the Stripe credit card system to take payment. Once paid, you'll be redirected back here so we can email out your tickets. Any problems please email <a href="mailto:twcomedy@miramedia.co.uk">twcomedy@miramedia.co.uk</a>. Thanks so much for your support — we look forward to seeing you!</p>
+                <?php endif; ?>
+            </form>
+            <?php
+            return ob_get_clean();
+        }
+
+        if ( $event_link ) {
+            return sprintf(
+                '<a href="%1$s" class="mira-book-btn mira-book-btn--link" style="background-color:%2$s;color:%3$s;">%4$s</a>',
+                esc_url( $event_link ),
+                esc_attr( $button_color ),
+                esc_attr( $button_text_color ),
+                esc_html( $button_text )
+            );
+        }
+
+        return '';
+    }
+
+    /**
+     * Upcoming events (soonest first) as a WP_Query. Shared by the grid and
+     * next-event rotator shortcodes.
+     */
+    private function upcoming_events_query( $limit = -1 ) {
+        return new WP_Query( array(
+            'post_type'      => 'mira_event',
+            'post_status'    => 'publish',
+            'posts_per_page' => $limit,
+            'meta_key'       => '_event_date',
+            'orderby'        => 'meta_value',
+            'order'          => 'ASC',
+            'meta_query'     => array( array(
+                'key'     => '_event_date',
+                'value'   => date( 'Y-m-d' ),
+                'compare' => '>=',
+                'type'    => 'DATE',
+            ) ),
+        ) );
+    }
+
     private function render_event_extras( $post_id ) {
         $charities = json_decode( get_post_meta( $post_id, '_event_charities', true ) ?: '[]', true ) ?: array();
         $people    = json_decode( get_post_meta( $post_id, '_event_people',    true ) ?: '[]', true ) ?: array();
@@ -1007,6 +1120,173 @@ class MiraEventList {
         return ob_get_clean();
     }
 
+    // ── [mira_next_event_rotator] shortcode ─────────────────────────────
+    //
+    // Left: a poster that auto-rotates through every upcoming event's featured
+    // image (links to each event). Right: the booking widget, fixed on the
+    // soonest event. Falls back to nothing when there are no upcoming events.
+
+    public function next_event_rotator_shortcode( $atts ) {
+        $atts = shortcode_atts( array(
+            'interval' => 6000, // ms between slides
+        ), $atts, 'mira_next_event_rotator' );
+
+        $events = $this->upcoming_events_query( -1 );
+        if ( ! $events->have_posts() ) {
+            return '';
+        }
+
+        $slides = array();
+        foreach ( $events->posts as $ev ) {
+            if ( ! has_post_thumbnail( $ev->ID ) ) {
+                continue;
+            }
+            $slides[] = array(
+                'title' => get_the_title( $ev->ID ),
+                'url'   => get_permalink( $ev->ID ),
+                'img'   => get_the_post_thumbnail( $ev->ID, 'large', array( 'alt' => get_the_title( $ev->ID ), 'loading' => 'lazy' ) ),
+            );
+        }
+
+        $next          = $events->posts[0];
+        $next_id       = $next->ID;
+        $ticket_price  = floatval( get_post_meta( $next_id, '_ticket_price', true ) );
+        $event_date    = get_post_meta( $next_id, '_event_date', true );
+        $display_date  = get_post_meta( $next_id, '_display_date', true );
+        $location      = get_post_meta( $next_id, '_event_location', true );
+        $when          = $display_date ?: ( $event_date ? date( 'l jS F Y', strtotime( $event_date ) ) : '' );
+
+        ob_start();
+        ?>
+        <div class="twc-next-rotator" data-interval="<?php echo esc_attr( (int) $atts['interval'] ); ?>">
+
+            <div class="twc-rotator" role="group" aria-label="<?php esc_attr_e( 'Upcoming event posters', 'mira-event-list' ); ?>">
+                <?php foreach ( $slides as $i => $slide ) : ?>
+                    <a class="twc-rotator-slide<?php echo 0 === $i ? ' is-active' : ''; ?>"
+                       href="<?php echo esc_url( $slide['url'] ); ?>"
+                       aria-hidden="<?php echo 0 === $i ? 'false' : 'true'; ?>">
+                        <?php echo $slide['img']; ?>
+                    </a>
+                <?php endforeach; ?>
+                <?php if ( count( $slides ) > 1 ) : ?>
+                    <div class="twc-rotator-dots" role="tablist">
+                        <?php foreach ( $slides as $i => $slide ) : ?>
+                            <button type="button" class="twc-rotator-dot<?php echo 0 === $i ? ' is-active' : ''; ?>"
+                                    data-index="<?php echo (int) $i; ?>"
+                                    aria-label="<?php echo esc_attr( sprintf( __( 'Show poster %d', 'mira-event-list' ), $i + 1 ) ); ?>"></button>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <div class="twc-next-panel">
+                <span class="mira-next-event-label"><?php esc_html_e( 'Next event', 'mira-event-list' ); ?></span>
+                <h3 class="mira-next-event-title"><a href="<?php echo esc_url( get_permalink( $next_id ) ); ?>"><?php echo esc_html( get_the_title( $next_id ) ); ?></a></h3>
+                <?php if ( $when || $location ) : ?>
+                    <p class="twc-next-when"><?php
+                        echo esc_html( $when );
+                        if ( $when && $location ) echo '<br>';
+                        echo esc_html( $location );
+                    ?></p>
+                <?php endif; ?>
+                <?php echo $this->render_booking_form( $next_id, array( 'show_note' => false ) ); ?>
+            </div>
+
+        </div>
+        <?php
+        wp_reset_postdata();
+        $this->print_rotator_script();
+        return ob_get_clean();
+    }
+
+    /** One-time inline script that drives every `.twc-next-rotator` on the page. */
+    private function print_rotator_script() {
+        static $done = false;
+        if ( $done ) {
+            return;
+        }
+        $done = true;
+        ?>
+        <script>
+        (function () {
+            document.querySelectorAll('.twc-next-rotator').forEach(function (root) {
+                var slides = root.querySelectorAll('.twc-rotator-slide');
+                var dots   = root.querySelectorAll('.twc-rotator-dot');
+                if (slides.length < 2) return;
+                var i = 0, interval = parseInt(root.dataset.interval, 10) || 6000, timer;
+                function show(n) {
+                    slides[i].classList.remove('is-active');
+                    slides[i].setAttribute('aria-hidden', 'true');
+                    if (dots[i]) dots[i].classList.remove('is-active');
+                    i = (n + slides.length) % slides.length;
+                    slides[i].classList.add('is-active');
+                    slides[i].setAttribute('aria-hidden', 'false');
+                    if (dots[i]) dots[i].classList.add('is-active');
+                }
+                function start() { timer = setInterval(function () { show(i + 1); }, interval); }
+                function stop() { clearInterval(timer); }
+                dots.forEach(function (dot) {
+                    dot.addEventListener('click', function () { stop(); show(parseInt(dot.dataset.index, 10)); start(); });
+                });
+                root.addEventListener('mouseenter', stop);
+                root.addEventListener('mouseleave', start);
+                if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) start();
+            });
+        }());
+        </script>
+        <?php
+    }
+
+    // ── [mira_events_grid] shortcode ───────────────────────────────────
+    //
+    // Card grid of every upcoming event: banner, date kicker, title, venue and
+    // an inline booking widget per card (same markup/JS as the single event).
+
+    public function events_grid_shortcode( $atts ) {
+        $atts = shortcode_atts( array( 'limit' => -1 ), $atts, 'mira_events_grid' );
+
+        $events = $this->upcoming_events_query( (int) $atts['limit'] );
+        if ( ! $events->have_posts() ) {
+            return '<p class="twc-events-grid-empty">' . esc_html__( 'No upcoming events just now — check back soon.', 'mira-event-list' ) . '</p>';
+        }
+
+        ob_start();
+        ?>
+        <div class="twc-events-grid">
+            <?php while ( $events->have_posts() ) : $events->the_post();
+                $post_id      = get_the_ID();
+                $event_date   = get_post_meta( $post_id, '_event_date', true );
+                $display_date = get_post_meta( $post_id, '_display_date', true );
+                $location     = get_post_meta( $post_id, '_event_location', true );
+                $permalink    = get_permalink( $post_id );
+                $kicker       = $display_date ?: ( $event_date ? date( 'D j M Y', strtotime( $event_date ) ) : '' );
+            ?>
+                <article class="twc-event-card">
+                    <?php if ( has_post_thumbnail() ) : ?>
+                        <a class="twc-event-card__banner" href="<?php echo esc_url( $permalink ); ?>">
+                            <?php the_post_thumbnail( 'large', array( 'alt' => get_the_title(), 'loading' => 'lazy' ) ); ?>
+                        </a>
+                    <?php endif; ?>
+                    <div class="twc-event-card__body">
+                        <?php if ( $kicker ) : ?>
+                            <div class="twc-event-card__kicker"><?php echo esc_html( $kicker ); ?></div>
+                        <?php endif; ?>
+                        <h3 class="twc-event-card__title"><a href="<?php echo esc_url( $permalink ); ?>"><?php the_title(); ?></a></h3>
+                        <?php if ( $location ) : ?>
+                            <div class="twc-event-card__venue"><?php echo esc_html( $location ); ?></div>
+                        <?php endif; ?>
+                        <div class="twc-event-card__book">
+                            <?php echo $this->render_booking_form( $post_id, array( 'show_note' => false ) ); ?>
+                        </div>
+                    </div>
+                </article>
+            <?php endwhile; ?>
+        </div>
+        <?php
+        wp_reset_postdata();
+        return ob_get_clean();
+    }
+
     // ── Scripts ──────────────────────────────────────────────────────────
 
     public function enqueue_scripts() {
@@ -1091,9 +1371,11 @@ class MiraEventList {
     // ── Shortcode ────────────────────────────────────────────────────────
 
     public function register_shortcode() {
-        add_shortcode( 'mira_event_list',  array( $this, 'event_list_shortcode' ) );
-        add_shortcode( 'mira_next_event',  array( $this, 'event_next_shortcode' ) );
-        add_shortcode( 'mira_ticket_menu', array( $this, 'ticket_menu_shortcode' ) );
+        add_shortcode( 'mira_event_list',         array( $this, 'event_list_shortcode' ) );
+        add_shortcode( 'mira_next_event',         array( $this, 'event_next_shortcode' ) );
+        add_shortcode( 'mira_next_event_rotator', array( $this, 'next_event_rotator_shortcode' ) );
+        add_shortcode( 'mira_events_grid',        array( $this, 'events_grid_shortcode' ) );
+        add_shortcode( 'mira_ticket_menu',        array( $this, 'ticket_menu_shortcode' ) );
     }
 
     // ── Ticket menu (dynamic list of upcoming events) ───────────────────
