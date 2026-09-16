@@ -2,6 +2,27 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.9.0] - 2026-09-16
+
+### Added
+- **`/door-checkin/` page.** Secret-key-gated, no-WP-login attendee check-in for
+  door staff on shared devices: pick an event, search attendees, tap to
+  toggle checked-in state, with a live running count. Includes a "Mark Paid"
+  action for cash-on-arrival bookings. Adds `checked_in_at` to
+  `wp_mira_attendees`.
+- **Booking-failure diagnostics.** `assets/booking.js` now distinguishes a
+  real HTTP failure (e.g. a WAF block) from an app-level error, and beacons a
+  log line to a new `mira_log_client_error` AJAX action on any failure — this
+  fires even when the main booking call itself is blocked before reaching
+  this plugin's code, which is the case it exists to catch.
+- **Emergency backup Stripe Payment Link.** Shown in the booking form's error
+  message only if the normal AJAX booking call fails, so a customer can still
+  pay while an underlying issue (e.g. a hosting-side block) is chased down.
+  Created via the Stripe API on first view of each event and cached as post
+  meta (`_stripe_payment_link_url`), so it's automatic per event with no
+  manual Stripe dashboard work. Payments made this way are reconciled
+  manually afterward via Bookings → Add Manual Booking.
+
 ## [2.7.0] - 2026-09-10
 
 ### Added

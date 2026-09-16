@@ -12,7 +12,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'MIRA_EVENT_LIST_VERSION', '2.8.0' );
+define( 'MIRA_EVENT_LIST_VERSION', '2.9.0' );
 define( 'MIRA_EVENT_LIST_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'MIRA_EVENT_LIST_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -747,6 +747,21 @@ class MiraEventList {
         return '<p class="mira-tickets-left">' . esc_html( $msg ) . '</p>';
     }
 
+    /**
+     * Emergency backup Stripe Payment Link for one event, or '' if it
+     * couldn't be created (e.g. no Stripe key configured yet, or the API is
+     * unreachable) — the booking form still works fine without it, this is
+     * a fallback shown only if the normal AJAX booking call fails.
+     */
+    private function fallback_payment_link( $event_id ) {
+        static $stripe = null;
+        if ( ! $stripe ) {
+            $stripe = new MiraStripe();
+        }
+        $link = $stripe->get_or_create_payment_link( $event_id );
+        return is_wp_error( $link ) ? '' : $link;
+    }
+
     /** Highest quantity a buyer may pick, capped to what's left. */
     private function booking_qty_max( $cap ) {
         if ( empty( $cap['max'] ) ) {
@@ -798,7 +813,8 @@ class MiraEventList {
                   data-event-id="<?php echo esc_attr( $post_id ); ?>"
                   data-ajax-url="<?php echo esc_url( $ajax_url ); ?>"
                   data-nonce="<?php echo esc_attr( wp_create_nonce( 'mira_booking_nonce' ) ); ?>"
-                  data-ticket-price="<?php echo esc_attr( $ticket_price ); ?>">
+                  data-ticket-price="<?php echo esc_attr( $ticket_price ); ?>"
+                  data-fallback-url="<?php echo esc_url( $this->fallback_payment_link( $post_id ) ); ?>">
                 <div class="mira-booking-fields">
                     <div class="mira-qty-wrap">
                         <label for="mira-qty-<?php echo esc_attr( $post_id ); ?>"><?php esc_html_e( 'Tickets', 'mira-event-list' ); ?></label>
@@ -981,7 +997,8 @@ class MiraEventList {
                           data-event-id="<?php echo esc_attr( $post_id ); ?>"
                           data-ajax-url="<?php echo esc_url( $ajax_url ); ?>"
                           data-nonce="<?php echo esc_attr( wp_create_nonce( 'mira_booking_nonce' ) ); ?>"
-                          data-ticket-price="<?php echo esc_attr( $ticket_price ); ?>">
+                          data-ticket-price="<?php echo esc_attr( $ticket_price ); ?>"
+                          data-fallback-url="<?php echo esc_url( $this->fallback_payment_link( $post_id ) ); ?>">
                         <div class="mira-booking-fields">
                             <div class="mira-qty-wrap">
                                 <label><?php esc_html_e( 'Tickets', 'mira-event-list' ); ?></label>
@@ -1084,7 +1101,8 @@ class MiraEventList {
                       data-event-id="<?php echo esc_attr( $post_id ); ?>"
                       data-ajax-url="<?php echo esc_url( $ajax_url ); ?>"
                       data-nonce="<?php echo esc_attr( wp_create_nonce( 'mira_booking_nonce' ) ); ?>"
-                      data-ticket-price="<?php echo esc_attr( $ticket_price ); ?>">
+                      data-ticket-price="<?php echo esc_attr( $ticket_price ); ?>"
+                      data-fallback-url="<?php echo esc_url( $this->fallback_payment_link( $post_id ) ); ?>">
                     <div class="mira-booking-fields">
                         <div class="mira-qty-wrap">
                             <label><?php esc_html_e( 'Tickets', 'mira-event-list' ); ?></label>
@@ -1316,17 +1334,6 @@ class MiraEventList {
             file_exists( $booking_js ) ? filemtime( $booking_js ) : MIRA_EVENT_LIST_VERSION,
             true
         );
-        wp_localize_script( 'mira-booking-script', 'miraBooking', array(
-            'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
-            // Emergency backup Stripe Payment Links, keyed by event ID. Shown
-            // only if the normal booking AJAX call fails, so a customer can
-            // still pay while the underlying issue is being chased down.
-            // Payments made this way are reconciled manually afterward via
-            // Bookings → Add Manual Booking.
-            'fallbackLinks' => array(
-                '310' => '',
-            ),
-        ) );
 
         $detail_css = MIRA_EVENT_LIST_PATH . 'assets/event-detail.css';
         wp_enqueue_style(
@@ -1675,7 +1682,8 @@ class MiraEventList {
                                       data-event-id="<?php echo esc_attr( $post_id ); ?>"
                                       data-ajax-url="<?php echo esc_url( $ajax_url ); ?>"
                                       data-nonce="<?php echo esc_attr( wp_create_nonce( 'mira_booking_nonce' ) ); ?>"
-                                      data-ticket-price="<?php echo esc_attr( $ticket_price ); ?>">
+                                      data-ticket-price="<?php echo esc_attr( $ticket_price ); ?>"
+                                      data-fallback-url="<?php echo esc_url( $this->fallback_payment_link( $post_id ) ); ?>">
 
                                     <div class="mira-booking-fields">
                                         <div class="mira-qty-wrap">
