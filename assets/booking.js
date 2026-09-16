@@ -81,8 +81,7 @@
             } catch (e) { /* logging must never break the booking flow */ }
         }
 
-        function showBookingFailure(errorEl, eventId, message) {
-            var fallback = (window.miraBooking && window.miraBooking.fallbackLinks || {})[eventId];
+        function showBookingFailure(errorEl, fallback, message) {
             if (fallback) {
                 errorEl.innerHTML = (message || 'Something went wrong.') +
                     ' You can also <a href="' + fallback + '" target="_blank" rel="noopener">pay via this backup link</a> — ' +
@@ -100,6 +99,7 @@
             var donation = donInput ? (donInput.value || 0) : 0;
             var eventId  = form.dataset.eventId;
             var ajaxUrl  = form.dataset.ajaxUrl;
+            var fallback = form.dataset.fallbackUrl;
 
             btn.disabled    = true;
             btn.textContent = 'Processing…';
@@ -126,14 +126,14 @@
                         window.location.href = data.data.url;
                     } else {
                         logClientError(ajaxUrl, eventId, 200, 'app_error: ' + (data.data || ''));
-                        showBookingFailure(errorEl, eventId, data.data);
+                        showBookingFailure(errorEl, fallback, data.data);
                         btn.disabled    = false;
                         btn.textContent = btn.dataset.label;
                     }
                 })
                 .catch(function (err) {
                     logClientError(ajaxUrl, eventId, 0, 'fetch_exception: ' + err.message);
-                    showBookingFailure(errorEl, eventId, 'Connection error.');
+                    showBookingFailure(errorEl, fallback, 'Connection error.');
                     btn.disabled    = false;
                     btn.textContent = btn.dataset.label;
                 });

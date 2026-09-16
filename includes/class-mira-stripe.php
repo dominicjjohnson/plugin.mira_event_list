@@ -122,6 +122,109 @@ class MiraStripe {
         return $data;
     }
 
+    /**
+     * A reusable Stripe Payment Link for one event — a static Stripe-hosted
+     * URL that needs no server round trip to load, used as an emergency
+     * fallback when the normal AJAX booking flow is unavailable. Created
+     * once via the API and cached as post meta, so it's automatic for every
+     * event with no manual Stripe dashboard work. Quantity (1 up to the same
+     * max the normal form allows) is adjustable on Stripe's own page.
+     */
+    public function get_or_create_payment_link( $event_id ) {
+        $cached = get_post_meta( $event_id, '_stripe_payment_link_url', true );
+        if ( $cached ) {
+            return $cached;
+        }
+
+        $event = get_post( $event_id );
+        if ( ! $event ) {
+            return new WP_Error( 'no_event', __( 'Event not found.', 'mira-event-list' ) );
+        }
+
+        $ticket_price_pence = intval( round( floatval( get_post_meta( $event_id, '_ticket_price', true ) ) * 100 ) );
+        if ( $ticket_price_pence <= 0 ) {
+            return new WP_Error( 'no_price', __( 'No ticket price set for this event.', 'mira-event-list' ) );
+        }
+
+        $max_tickets = (int) get_post_meta( $event_id, '_max_tickets', true );
+        $qty_max     = $max_tickets > 0 ? min( 10, $max_tickets ) : 10;
+
+        $price = $this->api_request( 'prices', array(
+            'currency'     => 'gbp',
+            'unit_amount'  => $ticket_price_pence,
+            'product_data' => array( 'name' => 'Ticket: ' . $event->post_title ),
+        ) );
+        if ( is_wp_error( $price ) ) {
+            return $price;
+        }
+
+        $link = $this->api_request( 'payment_links', array(
+            'line_items' => array(
+                array(
+                    'price'               => $price['id'],
+                    'quantity'            => 1,
+                    'adjustable_quantity' => array(
+                        'enabled' => 'true',
+                        'minimum' => 1,
+                        'maximum' => $qty_max,
+                    ),
+                ),
+            ),
+            'metadata' => array(
+                'event_id'   => $event_id,
+                'event_name' => $event->post_title,
+                'source'     => 'backup_payment_link',
+            ),
+            'after_completion' => array(
+                'type'                 => 'hosted_confirmation',
+                'hosted_confirmation'  => array(
+                    'custom_message' => "Thanks! We'll email your ticket shortly. If you don't hear from us within a few hours, please email " . get_option( 'admin_email' ) . ' with the name(s) on the booking.',
+                ),
+            ),
+        ) );
+        if ( is_wp_error( $link ) ) {
+            return $link;
+        }
+
+        update_post_meta( $event_id, '_stripe_payment_link_url', $link['url'] );
+
+        return $link['url'];
+    }
+
+    /** Shared low-level POST to the Stripe API, used by the payment-link helpers above. */
+    private function api_request( $endpoint, $body ) {
+        $secret_key = $this->get_secret_key();
+        if ( empty( $secret_key ) ) {
+            return new WP_Error( 'no_stripe_key', __( 'Stripe API key not configured.', 'mira-event-list' ) );
+        }
+
+        $response = wp_remote_post( 'https://api.stripe.com/v1/' . $endpoint, array(
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $secret_key,
+                'Content-Type'  => 'application/x-www-form-urlencoded',
+            ),
+            'body'    => $body,
+            // Shorter than the main checkout call — this is a best-effort
+            // fallback link, not core functionality, so don't let a slow
+            // Stripe response drag out a normal page load.
+            'timeout' => 10,
+        ) );
+
+        if ( is_wp_error( $response ) ) {
+            return $response;
+        }
+
+        $data        = json_decode( wp_remote_retrieve_body( $response ), true );
+        $status_code = (int) wp_remote_retrieve_response_code( $response );
+
+        if ( $status_code !== 200 ) {
+            $message = isset( $data['error']['message'] ) ? $data['error']['message'] : __( 'Unknown Stripe error.', 'mira-event-list' );
+            return new WP_Error( 'stripe_api_error', $message );
+        }
+
+        return $data;
+    }
+
     public function get_session( $session_id ) {
         $secret_key = $this->get_secret_key();
         if ( empty( $secret_key ) ) {
