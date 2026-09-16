@@ -72,6 +72,30 @@ class MiraDoorCheckin {
             exit;
         }
 
+        // AJAX: mark a whole booking as paid (e.g. cash on the door).
+        // Payment applies to the booking, not one ticket, so this updates
+        // every attendee row that shares this booking_id.
+        if ( ( $_SERVER['REQUEST_METHOD'] ?? '' ) === 'POST' && isset( $_POST['mark_paid_booking_id'] ) ) {
+            nocache_headers();
+            header( 'Content-Type: application/json' );
+
+            $booking_id = absint( $_POST['mark_paid_booking_id'] );
+            $wpdb->update(
+                $bookings_table,
+                array( 'payment_received' => 1, 'status' => 'complete' ),
+                array( 'id' => $booking_id ),
+                array( '%d', '%s' ),
+                array( '%d' )
+            );
+
+            $status = $wpdb->get_var( $wpdb->prepare(
+                "SELECT status FROM $bookings_table WHERE id = %d", $booking_id
+            ) );
+
+            echo wp_json_encode( array( 'status' => $status ) );
+            exit;
+        }
+
         nocache_headers();
         header( 'Content-Type: text/html; charset=utf-8' );
 
@@ -113,6 +137,7 @@ class MiraDoorCheckin {
             .btn { flex-shrink: 0; margin-left: 12px; padding: 12px 18px; border-radius: 8px; border: none; font-size: 1rem; font-weight: 600; }
             .btn.in { background: #2a2; color: #fff; }
             .btn.out { background: #333; color: #ddd; border: 1px solid #555; }
+            .btn.paid { background: #e8b93f; color: #111; }
             .back { display: inline-block; margin-bottom: 12px; }
         </style>
         <?php
@@ -151,7 +176,7 @@ class MiraDoorCheckin {
     private function render_event_list( $wpdb, $bookings_table, $attendees_table, $key, $event_id ) {
         $title = get_the_title( $event_id );
         $rows  = $wpdb->get_results( $wpdb->prepare( "
-            SELECT a.id, a.name, a.ticket_number, a.checked_in_at, b.booking_reference, b.status
+            SELECT a.id, a.name, a.ticket_number, a.checked_in_at, b.id AS booking_id, b.booking_reference, b.status
             FROM $attendees_table a
             JOIN $bookings_table b ON a.booking_id = b.id
             WHERE b.event_id = %d
@@ -171,21 +196,25 @@ class MiraDoorCheckin {
         echo '<input id="search" type="text" placeholder="' . esc_attr__( 'Search name or ticket #...', 'mira-event-list' ) . '">';
         echo '<div id="list">';
         foreach ( $rows as $r ) {
-            $is_in = ! empty( $r->checked_in_at );
+            $is_in    = ! empty( $r->checked_in_at );
+            $is_paid  = $r->status === 'complete';
             printf(
-                '<div class="row" data-search="%s" data-id="%d">
+                '<div class="row" data-search="%s" data-id="%d" data-booking-id="%d">
                     <div class="info">
                         <div class="name">%s</div>
-                        <div class="meta%s">%s &middot; %s</div>
+                        <div class="meta%s"><span class="status-label">%s</span> &middot; %s</div>
                     </div>
+                    %s
                     <button class="btn %s" onclick="mtoggle(this)">%s</button>
                 </div>',
                 esc_attr( strtolower( $r->name . ' ' . $r->ticket_number . ' ' . $r->booking_reference ) ),
                 (int) $r->id,
+                (int) $r->booking_id,
                 esc_html( $r->name ),
-                $r->status !== 'complete' ? ' pending' : '',
+                $is_paid ? '' : ' pending',
+                $is_paid ? esc_html__( 'Paid', 'mira-event-list' ) : esc_html( strtoupper( $r->status ) ),
                 esc_html( $r->ticket_number ),
-                $r->status === 'complete' ? esc_html__( 'Paid', 'mira-event-list' ) : esc_html( strtoupper( $r->status ) ),
+                $is_paid ? '' : '<button class="btn paid" onclick="mpaid(this)">' . esc_html__( 'Mark Paid', 'mira-event-list' ) . '</button>',
                 $is_in ? 'in' : 'out',
                 $is_in ? '&#10003; ' . esc_html__( 'In', 'mira-event-list' ) : esc_html__( 'Check in', 'mira-event-list' )
             );
@@ -220,6 +249,33 @@ class MiraDoorCheckin {
                 var total = document.querySelectorAll('#list .row').length;
                 var inCount = document.querySelectorAll('#list .btn.in').length;
                 summary.textContent = inCount + ' / ' + total + ' checked in';
+            })
+            .catch(function () { btn.disabled = false; alert('Network error, try again'); });
+        }
+
+        function mpaid(btn) {
+            var row = btn.closest('.row');
+            var bookingId = row.dataset.bookingId;
+            btn.disabled = true;
+            fetch(window.location.pathname + window.location.search, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'mark_paid_booking_id=' + encodeURIComponent(bookingId) + '&key=<?php echo esc_js( $key ); ?>'
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.status !== 'complete') {
+                    btn.disabled = false;
+                    alert('Could not mark as paid, try again');
+                    return;
+                }
+                // One booking can cover several attendees — update every row for it.
+                document.querySelectorAll('.row[data-booking-id="' + bookingId + '"]').forEach(function (r) {
+                    r.querySelector('.meta').classList.remove('pending');
+                    r.querySelector('.status-label').textContent = 'Paid';
+                    var paidBtn = r.querySelector('.btn.paid');
+                    if (paidBtn) paidBtn.remove();
+                });
             })
             .catch(function () { btn.disabled = false; alert('Network error, try again'); });
         }

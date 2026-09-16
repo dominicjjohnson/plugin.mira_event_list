@@ -14,6 +14,9 @@ class MiraBookings {
         add_action( 'wp_ajax_mira_save_attendees',        array( $this, 'ajax_save_attendees' ) );
         add_action( 'wp_ajax_nopriv_mira_save_attendees', array( $this, 'ajax_save_attendees' ) );
 
+        add_action( 'wp_ajax_mira_log_client_error',        array( $this, 'ajax_log_client_error' ) );
+        add_action( 'wp_ajax_nopriv_mira_log_client_error', array( $this, 'ajax_log_client_error' ) );
+
         add_action( 'rest_api_init', array( $this, 'register_webhook_endpoint' ) );
 
         add_shortcode( 'mira_booking_success', array( $this, 'booking_success_shortcode' ) );
@@ -194,6 +197,27 @@ class MiraBookings {
         );
 
         wp_send_json_success( array( 'url' => $session['url'] ) );
+    }
+
+    // ── AJAX: client-side failure beacon ─────────────────────────────────
+
+    /**
+     * Fire-and-forget diagnostic sink for booking-form failures. Deliberately
+     * takes no nonce: it needs to still work when the normal booking call
+     * itself is being blocked upstream (e.g. by a WAF) before it ever reaches
+     * this plugin's code, which is exactly the case it exists to catch.
+     * Writes to the PHP error log only — no DB writes, nothing to abuse.
+     */
+    public function ajax_log_client_error() {
+        error_log( sprintf(
+            'MIRA_CLIENT_LOG event=%s status=%s note=%s ua=%s',
+            substr( sanitize_text_field( $_POST['event_id'] ?? '' ), 0, 20 ),
+            substr( sanitize_text_field( $_POST['status'] ?? '' ), 0, 20 ),
+            substr( sanitize_text_field( $_POST['note'] ?? '' ), 0, 200 ),
+            substr( sanitize_text_field( $_POST['ua'] ?? '' ), 0, 200 )
+        ) );
+
+        wp_send_json_success();
     }
 
     // ── AJAX: save attendees + send tickets ──────────────────────────────

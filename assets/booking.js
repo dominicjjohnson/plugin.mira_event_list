@@ -61,38 +61,79 @@
             });
         });
 
+        // Fire-and-forget: records what actually happened on a failed booking
+        // attempt, including cases (like a WAF block) that never reach our
+        // own PHP code at all, so we have real evidence instead of relying on
+        // customers to report it.
+        function logClientError(ajaxUrl, eventId, status, note) {
+            try {
+                var params = new URLSearchParams();
+                params.append('action', 'mira_log_client_error');
+                params.append('event_id', eventId || '');
+                params.append('status', status || '');
+                params.append('note', note || '');
+                params.append('ua', navigator.userAgent);
+                if (navigator.sendBeacon) {
+                    navigator.sendBeacon(ajaxUrl, params);
+                } else {
+                    fetch(ajaxUrl, { method: 'POST', body: params, keepalive: true });
+                }
+            } catch (e) { /* logging must never break the booking flow */ }
+        }
+
+        function showBookingFailure(errorEl, eventId, message) {
+            var fallback = (window.miraBooking && window.miraBooking.fallbackLinks || {})[eventId];
+            if (fallback) {
+                errorEl.innerHTML = (message || 'Something went wrong.') +
+                    ' You can also <a href="' + fallback + '" target="_blank" rel="noopener">pay via this backup link</a> — ' +
+                    'email us your name afterward so we can send your ticket.';
+            } else {
+                errorEl.textContent = message || 'Something went wrong. Please try again.';
+            }
+        }
+
         function submitBooking(form, email) {
             var btn      = form.querySelector('.mira-book-btn');
             var errorEl  = form.querySelector('.mira-booking-error');
             var qty      = form.querySelector('[name="quantity"]').value;
             var donInput = form.querySelector('[name="donation"]');
             var donation = donInput ? (donInput.value || 0) : 0;
+            var eventId  = form.dataset.eventId;
+            var ajaxUrl  = form.dataset.ajaxUrl;
 
             btn.disabled    = true;
             btn.textContent = 'Processing…';
-            errorEl.textContent = '';
+            errorEl.innerHTML = '';
 
             var fd = new FormData();
             fd.append('action',     'mira_create_booking');
             fd.append('nonce',      form.dataset.nonce);
-            fd.append('event_id',   form.dataset.eventId);
+            fd.append('event_id',   eventId);
             fd.append('quantity',   qty);
             fd.append('donation',   donation);
             fd.append('lead_email', email);
 
-            fetch(form.dataset.ajaxUrl, { method: 'POST', body: fd })
-                .then(function (r) { return r.json(); })
+            fetch(ajaxUrl, { method: 'POST', body: fd })
+                .then(function (r) {
+                    if (!r.ok) {
+                        logClientError(ajaxUrl, eventId, r.status, 'http_not_ok');
+                        throw new Error('HTTP ' + r.status);
+                    }
+                    return r.json();
+                })
                 .then(function (data) {
                     if (data.success) {
                         window.location.href = data.data.url;
                     } else {
-                        errorEl.textContent = data.data || 'Something went wrong. Please try again.';
+                        logClientError(ajaxUrl, eventId, 200, 'app_error: ' + (data.data || ''));
+                        showBookingFailure(errorEl, eventId, data.data);
                         btn.disabled    = false;
                         btn.textContent = btn.dataset.label;
                     }
                 })
-                .catch(function () {
-                    errorEl.textContent = 'Connection error. Please try again.';
+                .catch(function (err) {
+                    logClientError(ajaxUrl, eventId, 0, 'fetch_exception: ' + err.message);
+                    showBookingFailure(errorEl, eventId, 'Connection error.');
                     btn.disabled    = false;
                     btn.textContent = btn.dataset.label;
                 });

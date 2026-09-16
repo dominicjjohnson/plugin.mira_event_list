@@ -1316,6 +1316,17 @@ class MiraEventList {
             file_exists( $booking_js ) ? filemtime( $booking_js ) : MIRA_EVENT_LIST_VERSION,
             true
         );
+        wp_localize_script( 'mira-booking-script', 'miraBooking', array(
+            'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
+            // Emergency backup Stripe Payment Links, keyed by event ID. Shown
+            // only if the normal booking AJAX call fails, so a customer can
+            // still pay while the underlying issue is being chased down.
+            // Payments made this way are reconciled manually afterward via
+            // Bookings → Add Manual Booking.
+            'fallbackLinks' => array(
+                '310' => '',
+            ),
+        ) );
 
         $detail_css = MIRA_EVENT_LIST_PATH . 'assets/event-detail.css';
         wp_enqueue_style(
