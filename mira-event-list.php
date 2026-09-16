@@ -12,7 +12,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'MIRA_EVENT_LIST_VERSION', '2.7.0' );
+define( 'MIRA_EVENT_LIST_VERSION', '2.8.0' );
 define( 'MIRA_EVENT_LIST_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'MIRA_EVENT_LIST_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -26,6 +26,7 @@ require_once MIRA_EVENT_LIST_PATH . 'includes/class-mira-stripe.php';
 require_once MIRA_EVENT_LIST_PATH . 'includes/class-mira-emails.php';
 require_once MIRA_EVENT_LIST_PATH . 'includes/class-mira-bookings.php';
 require_once MIRA_EVENT_LIST_PATH . 'includes/class-mira-admin-bookings.php';
+require_once MIRA_EVENT_LIST_PATH . 'includes/class-mira-door-checkin.php';
 
 add_filter( 'use_block_editor_for_post_type', function( $use, $post_type ) {
     return $post_type === 'mira_event' ? false : $use;
@@ -51,6 +52,7 @@ class MiraEventList {
 
         new MiraBookings();
         new MiraAdminBookings();
+        new MiraDoorCheckin();
     }
 
     public function register_meta_fields() {
@@ -2278,9 +2280,22 @@ add_action( 'plugins_loaded', function() {
             }
         }
 
+        // v2.8.0 added the /door-checkin/ rewrite rule. Rewrite rules aren't
+        // registered yet this early (that happens on 'init'), so defer the
+        // flush rather than calling it here — it would flush a rule set that
+        // doesn't include the new one yet.
+        update_option( 'mira_event_list_needs_rewrite_flush', 1 );
+
         update_option( 'mira_event_list_db_version', MIRA_EVENT_LIST_VERSION );
     }
 } );
+
+add_action( 'init', function() {
+    if ( get_option( 'mira_event_list_needs_rewrite_flush' ) ) {
+        flush_rewrite_rules();
+        delete_option( 'mira_event_list_needs_rewrite_flush' );
+    }
+}, 20 );
 
 // ── Activation / deactivation ────────────────────────────────────────────
 

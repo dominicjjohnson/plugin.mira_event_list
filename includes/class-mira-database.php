@@ -42,6 +42,7 @@ class MiraDatabase {
             ticket_number varchar(50) NOT NULL,
             is_lead tinyint(1) UNSIGNED NOT NULL DEFAULT 0,
             sent_at datetime DEFAULT NULL,
+            checked_in_at datetime DEFAULT NULL,
             PRIMARY KEY (id),
             KEY idx_booking_id (booking_id),
             UNIQUE KEY uniq_ticket (ticket_number)
