@@ -2,6 +2,19 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.9.1] - 2026-09-18
+
+### Changed
+- **Booking form readability on iPhone/iPad.** Qty/donation inputs, the book
+  button, and surrounding text were all under 16px — small on their own, and
+  under-16px inputs also trigger iOS Safari's auto-zoom-on-focus, which is
+  likely what made the form look broken on a customer's iPhone. Bumped across
+  the board (labels, inputs, button, total, note, Stripe badge).
+- **Standing "problem with the form?" link.** The emergency backup Stripe
+  Payment Link (added in 2.9.0) was previously only shown after a failed
+  booking attempt. It's now also shown as a permanent, low-key link under
+  every booking form, so a buyer isn't blocked on hitting an error first.
+
 ## [2.9.0] - 2026-09-16
 
 ### Added

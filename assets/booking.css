@@ -24,7 +24,7 @@
 
 .mira-qty-wrap label,
 .mira-donation-wrap label {
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
     color: #555;
     text-transform: uppercase;
@@ -37,7 +37,9 @@
     padding: 8px 10px;
     border: 1px solid #ddd;
     border-radius: 4px;
-    font-size: 14px;
+    /* Keep at 16px+: iOS Safari auto-zooms the page on focus for any
+       input under 16px, which is what made this look broken on iPhone/iPad. */
+    font-size: 16px;
     background: #fff;
     box-sizing: border-box;
     color: #333;
@@ -56,7 +58,7 @@
     padding: 11px 16px;
     border: none;
     border-radius: 4px;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
     cursor: pointer;
     text-align: center;
@@ -76,19 +78,19 @@
 
 .mira-booking-error {
     margin-top: 8px;
-    font-size: 13px;
+    font-size: 14px;
     color: #c0392b;
     min-height: 18px;
 }
 
 .mira-booking-total {
     margin-bottom: 10px;
-    font-size: 14px;
+    font-size: 15px;
     color: #333;
 }
 
 .mira-total-amount {
-    font-size: 16px;
+    font-size: 17px;
 }
 
 .mira-stripe-badge {
@@ -97,7 +99,7 @@
     justify-content: center;
     gap: 5px;
     margin-top: 8px;
-    font-size: 12px;
+    font-size: 13px;
     color: #999;
 }
 
@@ -108,13 +110,24 @@
 
 .mira-booking-note {
     margin-top: 12px;
-    font-size: 13px;
+    font-size: 14px;
     color: #555;
     line-height: 1.5;
 }
 
 .mira-booking-note a {
     color: inherit;
+}
+
+.mira-fallback-note {
+    margin-top: 10px;
+    font-size: 14px;
+    text-align: center;
+}
+
+.mira-fallback-note a {
+    color: #555;
+    text-decoration: underline;
 }
 
 /* ── Capacity: tickets left / sold out ─────────────────────────────── */

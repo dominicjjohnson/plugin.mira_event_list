@@ -3,7 +3,7 @@
  * Plugin Name: Mira Event List
  * Plugin URI: https://github.com/dominicjjohnson/plugin.mira_event_list
  * Description: A WordPress plugin to manage events with custom post type, shortcode display, and Stripe ticket purchasing.
- * Version: 2.7.0
+ * Version: 2.9.1
  * Author: Miramedia / Dominic Johnson
  * Author URI: https://about.me/dominicjjohnson
  * License: GPL v2 or later
@@ -12,7 +12,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'MIRA_EVENT_LIST_VERSION', '2.9.0' );
+define( 'MIRA_EVENT_LIST_VERSION', '2.9.1' );
 define( 'MIRA_EVENT_LIST_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'MIRA_EVENT_LIST_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -750,8 +750,9 @@ class MiraEventList {
     /**
      * Emergency backup Stripe Payment Link for one event, or '' if it
      * couldn't be created (e.g. no Stripe key configured yet, or the API is
-     * unreachable) — the booking form still works fine without it, this is
-     * a fallback shown only if the normal AJAX booking call fails.
+     * unreachable) — the booking form still works fine without it. Shown
+     * as a standing "problem with the form?" link under every booking form,
+     * and also swapped into the error message if the AJAX booking call fails.
      */
     private function fallback_payment_link( $event_id ) {
         static $stripe = null;
@@ -760,6 +761,14 @@ class MiraEventList {
         }
         $link = $stripe->get_or_create_payment_link( $event_id );
         return is_wp_error( $link ) ? '' : $link;
+    }
+
+    /** Standing "pay directly" link shown under every booking form, in case the form itself is broken for a buyer. */
+    private function fallback_note_html( $fallback_url ) {
+        if ( ! $fallback_url ) {
+            return '';
+        }
+        return '<p class="mira-fallback-note"><a href="' . esc_url( $fallback_url ) . '" target="_blank" rel="noopener">Problem with the form? Click here to pay directly</a></p>';
     }
 
     /** Highest quantity a buyer may pick, capped to what's left. */
@@ -808,13 +817,14 @@ class MiraEventList {
 
             ob_start();
             echo $this->tickets_left_notice( $capacity );
+            $fallback_url = $this->fallback_payment_link( $post_id );
             ?>
             <form class="mira-booking-form"
                   data-event-id="<?php echo esc_attr( $post_id ); ?>"
                   data-ajax-url="<?php echo esc_url( $ajax_url ); ?>"
                   data-nonce="<?php echo esc_attr( wp_create_nonce( 'mira_booking_nonce' ) ); ?>"
                   data-ticket-price="<?php echo esc_attr( $ticket_price ); ?>"
-                  data-fallback-url="<?php echo esc_url( $this->fallback_payment_link( $post_id ) ); ?>">
+                  data-fallback-url="<?php echo esc_url( $fallback_url ); ?>">
                 <div class="mira-booking-fields">
                     <div class="mira-qty-wrap">
                         <label for="mira-qty-<?php echo esc_attr( $post_id ); ?>"><?php esc_html_e( 'Tickets', 'mira-event-list' ); ?></label>
@@ -845,6 +855,7 @@ class MiraEventList {
                 <?php if ( $args['show_note'] ) : ?>
                     <p class="mira-booking-note">You will be redirected to the Stripe credit card system to take payment. Once paid, you'll be redirected back here so we can email out your tickets. Any problems please email <a href="mailto:twcomedy@miramedia.co.uk">twcomedy@miramedia.co.uk</a>. Thanks so much for your support — we look forward to seeing you!</p>
                 <?php endif; ?>
+                <?php echo $this->fallback_note_html( $fallback_url ); ?>
             </form>
             <?php
             return ob_get_clean();
@@ -992,13 +1003,14 @@ class MiraEventList {
                     $btn_label = '£' . number_format( $ticket_price, 2 ) . ' per ticket — Book Now';
                     $qty_max   = $this->booking_qty_max( $capacity );
                 ?>
-                    <?php echo $this->tickets_left_notice( $capacity ); ?>
+                    <?php echo $this->tickets_left_notice( $capacity );
+                    $fallback_url = $this->fallback_payment_link( $post_id ); ?>
                     <form class="mira-booking-form"
                           data-event-id="<?php echo esc_attr( $post_id ); ?>"
                           data-ajax-url="<?php echo esc_url( $ajax_url ); ?>"
                           data-nonce="<?php echo esc_attr( wp_create_nonce( 'mira_booking_nonce' ) ); ?>"
                           data-ticket-price="<?php echo esc_attr( $ticket_price ); ?>"
-                          data-fallback-url="<?php echo esc_url( $this->fallback_payment_link( $post_id ) ); ?>">
+                          data-fallback-url="<?php echo esc_url( $fallback_url ); ?>">
                         <div class="mira-booking-fields">
                             <div class="mira-qty-wrap">
                                 <label><?php esc_html_e( 'Tickets', 'mira-event-list' ); ?></label>
@@ -1027,6 +1039,7 @@ class MiraEventList {
                         </div>
                         <div class="mira-booking-error" role="alert"></div>
                         <p class="mira-booking-note">You will be redirected to the Stripe credit card system to take payment. Once paid, you'll be redirected back here so we can email out your tickets. Any problems please email <a href="mailto:twcomedy@miramedia.co.uk">twcomedy@miramedia.co.uk</a>. Thanks so much for your support — we look forward to seeing you!</p>
+                        <?php echo $this->fallback_note_html( $fallback_url ); ?>
                     </form>
                 <?php elseif ( $event_link ) : ?>
                     <a href="<?php echo esc_url( $event_link ); ?>"
@@ -1096,13 +1109,14 @@ class MiraEventList {
                 $btn_label = '£' . number_format( $ticket_price, 2 ) . ' per ticket — Book Now';
                 $qty_max   = $this->booking_qty_max( $capacity );
             ?>
-                <?php echo $this->tickets_left_notice( $capacity ); ?>
+                <?php echo $this->tickets_left_notice( $capacity );
+                $fallback_url = $this->fallback_payment_link( $post_id ); ?>
                 <form class="mira-booking-form"
                       data-event-id="<?php echo esc_attr( $post_id ); ?>"
                       data-ajax-url="<?php echo esc_url( $ajax_url ); ?>"
                       data-nonce="<?php echo esc_attr( wp_create_nonce( 'mira_booking_nonce' ) ); ?>"
                       data-ticket-price="<?php echo esc_attr( $ticket_price ); ?>"
-                      data-fallback-url="<?php echo esc_url( $this->fallback_payment_link( $post_id ) ); ?>">
+                      data-fallback-url="<?php echo esc_url( $fallback_url ); ?>">
                     <div class="mira-booking-fields">
                         <div class="mira-qty-wrap">
                             <label><?php esc_html_e( 'Tickets', 'mira-event-list' ); ?></label>
@@ -1132,6 +1146,7 @@ class MiraEventList {
                     </div>
                     <div class="mira-booking-error" role="alert"></div>
                     <p class="mira-booking-note">You will be redirected to the Stripe credit card system to take payment. Once paid, you'll be redirected back here so we can email out your tickets. Any problems please email <a href="mailto:twcomedy@miramedia.co.uk">twcomedy@miramedia.co.uk</a>. Thanks so much for your support — we look forward to seeing you!</p>
+                    <?php echo $this->fallback_note_html( $fallback_url ); ?>
                 </form>
             <?php endif; ?>
         </div>
@@ -1677,13 +1692,14 @@ class MiraEventList {
                                 $btn_label = '£' . number_format( $ticket_price, 2 ) . ' per ticket — Book Now';
                                 $qty_max   = $this->booking_qty_max( $capacity );
                             ?>
-                                <?php echo $this->tickets_left_notice( $capacity ); ?>
+                                <?php echo $this->tickets_left_notice( $capacity );
+                                $fallback_url = $this->fallback_payment_link( $post_id ); ?>
                                 <form class="mira-booking-form"
                                       data-event-id="<?php echo esc_attr( $post_id ); ?>"
                                       data-ajax-url="<?php echo esc_url( $ajax_url ); ?>"
                                       data-nonce="<?php echo esc_attr( wp_create_nonce( 'mira_booking_nonce' ) ); ?>"
                                       data-ticket-price="<?php echo esc_attr( $ticket_price ); ?>"
-                                      data-fallback-url="<?php echo esc_url( $this->fallback_payment_link( $post_id ) ); ?>">
+                                      data-fallback-url="<?php echo esc_url( $fallback_url ); ?>">
 
                                     <div class="mira-booking-fields">
                                         <div class="mira-qty-wrap">
@@ -1721,6 +1737,7 @@ class MiraEventList {
                                     </div>
                                     <div class="mira-booking-error" role="alert"></div>
                                     <p class="mira-booking-note">You will be redirected to the Stripe credit card system to take payment. Once paid, you'll be redirected back here so we can email out your tickets. Any problems please email <a href="mailto:twcomedy@miramedia.co.uk">twcomedy@miramedia.co.uk</a>. Thanks so much for your support — we look forward to seeing you!</p>
+                                    <?php echo $this->fallback_note_html( $fallback_url ); ?>
                                 </form>
 
                             <?php elseif ( $event_link ) : ?>
