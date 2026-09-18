@@ -3,6 +3,10 @@
 .mira-booking-form {
     margin-top: auto;
     padding-top: 12px;
+    /* Override whatever font the theme happens to load — a native stack
+       renders consistently (and legibly) on every device/browser instead
+       of depending on a webfont that may render oddly or fail to load. */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 .mira-booking-fields {
@@ -104,7 +108,10 @@
 }
 
 .mira-stripe-wordmark {
-    color: #635BFF;
+    /* Stripe's brand purple (#635BFF) is under WCAG AA contrast (~4.3:1)
+       on light backgrounds; this darker shade keeps the same hue but reads
+       clearly on white, pale yellow, etc. */
+    color: #4B3FD6;
     font-weight: 700;
 }
 

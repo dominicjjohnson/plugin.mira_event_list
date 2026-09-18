@@ -2,6 +2,18 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.9.2] - 2026-09-18
+
+### Changed
+- **Booking form font.** Forces a native system font stack
+  (`-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+  sans-serif`) on `.mira-booking-form` instead of inheriting the theme's font,
+  so it renders consistently and legibly regardless of what webfont the theme
+  loads.
+- **Stripe badge contrast.** Darkened `.mira-stripe-wordmark` from `#635BFF`
+  to `#4B3FD6` — the original brand purple was under WCAG AA contrast
+  (~4.3:1) on light/pale backgrounds.
+
 ## [2.9.1] - 2026-09-18
 
 ### Changed
