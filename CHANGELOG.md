@@ -2,6 +2,22 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.9.3] - 2026-09-20
+
+### Added
+- **`[mira_events_banner]` shortcode.** A single full-width banner that
+  auto-rotates through every upcoming event's featured image; each slide links
+  to its event. Image only — no title or booking form. Attributes: `interval`
+  (ms, default 6000), `ratio` (default `16/9`), `size` (image size, default
+  `large`), `limit`. Drop it into a page in place of a static image block.
+- **`assets/rotator.css`** — theme-neutral rotator mechanics (positioning,
+  cross-fade, dots) now shipped with the plugin and enqueued on the front end,
+  so `[mira_events_banner]` and `[mira_next_event_rotator]` render correctly on
+  any active theme rather than depending on theme CSS.
+
+  (Merged in from the `feature/2.7.1-events-banner` branch, which had been
+  built off pre-2.9 `main` and never merged.)
+
 ## [2.9.2] - 2026-09-18
 
 ### Changed
@@ -47,7 +63,6 @@ All notable changes to the Mira Event List plugin will be documented in this fil
   meta (`_stripe_payment_link_url`), so it's automatic per event with no
   manual Stripe dashboard work. Payments made this way are reconciled
   manually afterward via Bookings → Add Manual Booking.
-
 ## [2.7.0] - 2026-09-10
 
 ### Added
