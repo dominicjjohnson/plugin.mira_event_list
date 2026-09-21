@@ -2,6 +2,26 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.10.0] - 2026-09-21
+
+### Added
+- **"Mark as Sold Out" field (Ticketing box).** Manual override for cash/door
+  sales that never create a booking record — e.g. the last few tickets sold
+  in person at the venue. When on, the event shows SOLD OUT everywhere
+  (single event page, `[mira_event_list]`, `[mira_events_grid]`,
+  `[mira_next_event]`, `[mira_next_event_rotator]`) regardless of ticket
+  capacity, and it now also blocks the booking AJAX endpoint server-side for
+  unlimited-capacity events (previously that capacity check only ran when a
+  `Maximum Tickets` value was set).
+- **SOLD OUT hero image bar.** When an event is sold out (by capacity or the
+  manual override), a red SOLD OUT bar overlays the event's featured image on
+  the single event page. Implemented via the `post_thumbnail_html` filter so
+  it works with the `core/post-featured-image` block used by the site's
+  block-theme templates, without editing any theme file.
+- **Sold-out cross-sell links.** The single event page now lists other
+  upcoming (non-sold-out) events under the SOLD OUT notice: "This event is
+  sold out. These other tickets are available:" followed by links to each.
+
 ## [2.9.3] - 2026-09-20
 
 ### Added

@@ -57,6 +57,10 @@ In the **Ticketing** meta box:
   "Only X tickets left" shows once the remaining count (which includes *pending*
   orders) is within the final 25%. Blank/0 = unlimited. A live "Sold so far"
   readout is shown in the box.
+- **Mark as Sold Out** — manual override for cash/door sales that never create
+  a booking record. Forces SOLD OUT everywhere for this event regardless of
+  capacity, overlays a red SOLD OUT bar on the hero image on the event page,
+  and lists other available events under it.
 - **Enable Donations** — optional donation field on the booking form.
 - **Mailjet Tag** — per-event boolean contact property (auto-named if blank).
 

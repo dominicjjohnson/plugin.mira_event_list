@@ -6,6 +6,29 @@
     color: #3F60F6;
 }
 
+/* ── Single event: hero image SOLD OUT bar ──────────────────────────── */
+
+.mira-hero-image-wrap {
+    position: relative;
+}
+
+.mira-hero-sold-out-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%) rotate(-3deg);
+    background: #c00;
+    color: #fff;
+    font-size: clamp(20px, 4vw, 40px);
+    font-weight: 800;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    text-align: center;
+    padding: 14px 0;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, .3);
+}
+
 /* ── Single event: extras appended via the_content ─────────────────── */
 
 .mira-event-detail-extras {
@@ -116,6 +139,34 @@
     margin: 0;
     font-size: 13px;
     color: #888;
+}
+
+/* ── Sold-out cross-sell: other available events ────────────────────── */
+
+.mira-sold-out-alternatives {
+    margin-top: 16px;
+    text-align: center;
+}
+
+.mira-sold-out-alternatives p {
+    margin: 0 0 8px;
+    font-size: 14px;
+    color: #555;
+}
+
+.mira-sold-out-alternatives ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.mira-sold-out-alternatives li {
+    margin: 0 0 6px;
+}
+
+.mira-sold-out-alternatives a {
+    font-weight: 600;
+    text-decoration: underline;
 }
 
 /* ── Booking section on single page ─────────────────────────────────── */

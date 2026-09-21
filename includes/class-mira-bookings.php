@@ -36,24 +36,26 @@ class MiraBookings {
      * - `sold_paid`      tickets on paid + complete bookings (drives SOLD OUT)
      * - `sold_all`       tickets on pending + paid + complete bookings
      * - `remaining`      max − sold_all, floored at 0 (the public "X left" count)
-     * - `sold_out`       true once sold_paid reaches max
+     * - `sold_out`       true once sold_paid reaches max, or the event's
+     *                    "Mark as Sold Out" override is on
      * - `show_remaining` true when not sold out and remaining is within the
      *                    final 25% of max (i.e. remaining ≤ ceil(max × 0.25))
      *
-     * When no maximum is set (`max` ≤ 0) the event is unlimited: `sold_out` and
-     * `show_remaining` are both false.
+     * When no maximum is set (`max` ≤ 0) the event is unlimited: `sold_out` is
+     * still true if the manual override is on, and `show_remaining` is false.
      */
     public static function event_capacity( $event_id ) {
         global $wpdb;
 
-        $max = (int) get_post_meta( $event_id, '_max_tickets', true );
+        $max    = (int) get_post_meta( $event_id, '_max_tickets', true );
+        $manual = (bool) get_post_meta( $event_id, '_manual_sold_out', true );
 
         $cap = array(
             'max'            => $max,
             'sold_paid'      => 0,
             'sold_all'       => 0,
             'remaining'      => 0,
-            'sold_out'       => false,
+            'sold_out'       => $manual,
             'show_remaining' => false,
         );
 
@@ -76,7 +78,7 @@ class MiraBookings {
         ) );
 
         $cap['remaining']      = max( 0, $max - $cap['sold_all'] );
-        $cap['sold_out']       = ( $cap['sold_paid'] >= $max );
+        $cap['sold_out']       = $manual || ( $cap['sold_paid'] >= $max );
         $cap['show_remaining'] = ( ! $cap['sold_out'] && $cap['remaining'] <= (int) ceil( $max * 0.25 ) );
 
         return $cap;
@@ -130,13 +132,14 @@ class MiraBookings {
             wp_send_json_error( __( 'Tickets are not available for this event.', 'mira-event-list' ) );
         }
 
-        // Capacity check. SOLD OUT is based on paid tickets; block anything that
-        // would push paid sales past the maximum.
+        // Capacity check. SOLD OUT is based on paid tickets (or the manual
+        // "Mark as Sold Out" override); block anything that would push paid
+        // sales past the maximum.
         $capacity = self::event_capacity( $event_id );
+        if ( $capacity['sold_out'] ) {
+            wp_send_json_error( __( 'Sorry, this event is now sold out.', 'mira-event-list' ) );
+        }
         if ( $capacity['max'] > 0 ) {
-            if ( $capacity['sold_out'] ) {
-                wp_send_json_error( __( 'Sorry, this event is now sold out.', 'mira-event-list' ) );
-            }
             $left = $capacity['max'] - $capacity['sold_paid'];
             if ( $quantity > $left ) {
                 wp_send_json_error( sprintf(

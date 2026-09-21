@@ -3,7 +3,7 @@
  * Plugin Name: Mira Event List
  * Plugin URI: https://github.com/dominicjjohnson/plugin.mira_event_list
  * Description: A WordPress plugin to manage events with custom post type, shortcode display, and Stripe ticket purchasing.
- * Version: 2.9.3
+ * Version: 2.10.0
  * Author: Miramedia / Dominic Johnson
  * Author URI: https://about.me/dominicjjohnson
  * License: GPL v2 or later
@@ -12,7 +12,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'MIRA_EVENT_LIST_VERSION', '2.9.3' );
+define( 'MIRA_EVENT_LIST_VERSION', '2.10.0' );
 define( 'MIRA_EVENT_LIST_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'MIRA_EVENT_LIST_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -46,6 +46,7 @@ class MiraEventList {
         add_action( 'admin_init',       array( $this, 'settings_init' ) );
         add_action( 'after_setup_theme', array( $this, 'add_image_sizes' ) );
         add_filter( 'the_content',       array( $this, 'event_detail_content' ) );
+        add_filter( 'post_thumbnail_html', array( $this, 'maybe_add_hero_sold_out_bar' ), 10, 5 );
         add_filter( 'wp_get_nav_menu_items', array( $this, 'nav_menu_ticket_items' ), 10, 3 );
         add_filter( 'manage_mira_event_posts_columns',       array( $this, 'event_admin_columns' ) );
         add_action( 'manage_mira_event_posts_custom_column', array( $this, 'event_admin_column_content' ), 10, 2 );
@@ -61,6 +62,7 @@ class MiraEventList {
             '_event_registration_url', '_event_registration_cta',
             '_event_documents', '_event_faqs',
             '_tickets_enabled', '_ticket_price', '_enable_donation',
+            '_manual_sold_out',
             '_mailjet_event_tag',
         );
         foreach ( $string_fields as $key ) {
@@ -248,6 +250,7 @@ class MiraEventList {
         $ticket_price    = get_post_meta( $post->ID, '_ticket_price', true );
         $enable_donation = get_post_meta( $post->ID, '_enable_donation', true );
         $max_tickets     = (int) get_post_meta( $post->ID, '_max_tickets', true );
+        $manual_sold_out = get_post_meta( $post->ID, '_manual_sold_out', true );
         $mailjet_tag     = get_post_meta( $post->ID, '_mailjet_event_tag', true );
         $capacity        = MiraBookings::event_capacity( $post->ID );
         $mailjet_auto    = MiraMailjet::generate_event_tag( $post->ID );
@@ -295,6 +298,16 @@ class MiraEventList {
                             <?php endif; ?>
                         <?php endif; ?>
                     </p>
+                </td>
+            </tr>
+            <tr>
+                <th><?php esc_html_e( 'Mark as Sold Out', 'mira-event-list' ); ?></th>
+                <td>
+                    <label>
+                        <input type="checkbox" name="manual_sold_out" value="1" <?php checked( $manual_sold_out, '1' ); ?>>
+                        <?php esc_html_e( 'Force this event to show as SOLD OUT', 'mira-event-list' ); ?>
+                    </label>
+                    <p class="description"><?php esc_html_e( 'Use this when remaining tickets were sold for cash on the door and won\'t be recorded as bookings. Overrides ticket capacity: hides the booking form / event-link button everywhere, shows a SOLD OUT bar over the event\'s hero image, and lists other available events on the event page.', 'mira-event-list' ); ?></p>
                 </td>
             </tr>
             <tr>
@@ -407,6 +420,7 @@ class MiraEventList {
             update_post_meta( $post_id, '_max_tickets', max( 0, intval( $_POST['max_tickets'] ) ) );
         }
         update_post_meta( $post_id, '_enable_donation', isset( $_POST['enable_donation'] ) ? '1' : '' );
+        update_post_meta( $post_id, '_manual_sold_out', isset( $_POST['manual_sold_out'] ) ? '1' : '' );
 
         if ( isset( $_POST['mailjet_event_tag'] ) ) {
             $mailjet_tag = MiraMailjet::sanitize_tag( wp_unslash( $_POST['mailjet_event_tag'] ) );
@@ -725,10 +739,65 @@ class MiraEventList {
         return $content . $this->render_event_extras( get_the_ID() );
     }
 
+    /**
+     * Overlays a red SOLD OUT bar on the single event page's hero image.
+     * Block themes render that image with the `core/post-featured-image`
+     * block, which calls `get_the_post_thumbnail()` under the hood at its
+     * default 'post-thumbnail' size — so hooking this filter reaches the
+     * hero without touching any theme template.
+     */
+    public function maybe_add_hero_sold_out_bar( $html, $post_id, $post_thumbnail_id, $size, $attr ) {
+        if ( ! $html || 'post-thumbnail' !== $size ) {
+            return $html;
+        }
+        if ( ! is_singular( 'mira_event' ) || (int) $post_id !== get_queried_object_id() ) {
+            return $html;
+        }
+        $capacity = MiraBookings::event_capacity( $post_id );
+        if ( empty( $capacity['sold_out'] ) ) {
+            return $html;
+        }
+        $bar = '<div class="mira-hero-sold-out-bar">' . esc_html__( 'SOLD OUT', 'mira-event-list' ) . '</div>';
+        return '<div class="mira-hero-image-wrap">' . $html . $bar . '</div>';
+    }
+
     // ── Ticket capacity helpers ─────────────────────────────────────────
 
     private function sold_out_notice() {
         return '<div class="mira-sold-out">' . esc_html__( 'SOLD OUT', 'mira-event-list' ) . '</div>';
+    }
+
+    /**
+     * "These other tickets are available" cross-sell shown under the SOLD OUT
+     * notice on the single event page, linking to other upcoming events that
+     * aren't themselves sold out.
+     */
+    private function sold_out_alternatives_notice( $exclude_id ) {
+        $others = $this->upcoming_events_query( -1 );
+        $links  = array();
+
+        while ( $others->have_posts() ) {
+            $others->the_post();
+            $id = get_the_ID();
+            if ( $id === $exclude_id ) {
+                continue;
+            }
+            $other_capacity = MiraBookings::event_capacity( $id );
+            if ( ! empty( $other_capacity['sold_out'] ) ) {
+                continue;
+            }
+            $links[] = '<li><a href="' . esc_url( get_permalink( $id ) ) . '">' . esc_html( get_the_title( $id ) ) . '</a></li>';
+        }
+        wp_reset_postdata();
+
+        if ( empty( $links ) ) {
+            return '';
+        }
+
+        return '<div class="mira-sold-out-alternatives">'
+            . '<p>' . esc_html__( 'This event is sold out. These other tickets are available:', 'mira-event-list' ) . '</p>'
+            . '<ul>' . implode( '', $links ) . '</ul>'
+            . '</div>';
     }
 
     private function tickets_left_notice( $cap ) {
@@ -807,7 +876,7 @@ class MiraEventList {
         $button_text       = get_option( 'mira_event_button_text', 'Goto Event' );
         $ajax_url          = admin_url( 'admin-ajax.php' );
 
-        if ( $tickets_enabled && $capacity['sold_out'] ) {
+        if ( $capacity['sold_out'] ) {
             return $this->sold_out_notice();
         }
 
@@ -997,8 +1066,9 @@ class MiraEventList {
             <?php endif; ?>
 
             <div class="mira-event-booking-section">
-                <?php if ( $tickets_enabled && $capacity['sold_out'] ) : ?>
+                <?php if ( $capacity['sold_out'] ) : ?>
                     <?php echo $this->sold_out_notice(); ?>
+                    <?php echo $this->sold_out_alternatives_notice( $post_id ); ?>
                 <?php elseif ( $tickets_enabled ) :
                     $btn_label = '£' . number_format( $ticket_price, 2 ) . ' per ticket — Book Now';
                     $qty_max   = $this->booking_qty_max( $capacity );
@@ -1103,7 +1173,7 @@ class MiraEventList {
                 <a href="<?php echo esc_url( $permalink ); ?>"><?php echo esc_html( $title ); ?></a>
             </h3>
 
-            <?php if ( $tickets_enabled && $capacity['sold_out'] ) : ?>
+            <?php if ( $capacity['sold_out'] ) : ?>
                 <?php echo $this->sold_out_notice(); ?>
             <?php elseif ( $tickets_enabled ) :
                 $btn_label = '£' . number_format( $ticket_price, 2 ) . ' per ticket — Book Now';
@@ -1773,7 +1843,7 @@ class MiraEventList {
                         <?php endif; ?>
 
                         <div class="event-goto-button-bottom">
-                            <?php if ( $tickets_enabled && $capacity['sold_out'] ) : ?>
+                            <?php if ( $capacity['sold_out'] ) : ?>
                                 <?php echo $this->sold_out_notice(); ?>
                             <?php elseif ( $tickets_enabled ) :
                                 $btn_label = '£' . number_format( $ticket_price, 2 ) . ' per ticket — Book Now';
@@ -2280,6 +2350,10 @@ add_filter( 'mira_ticket_menu_tickets_only', '__return_true' ); // ticketed even
                     <tr>
                         <td><strong><?php esc_html_e( 'Maximum Tickets', 'mira-event-list' ); ?></strong></td>
                         <td><?php esc_html_e( 'Total capacity. "SOLD OUT" shows once paid tickets reach this number. "Only X tickets left" appears once the remaining count is within the final 25% — that count includes pending (unpaid) orders. Blank or 0 = unlimited. The box shows a live "Sold so far" readout.', 'mira-event-list' ); ?></td>
+                    </tr>
+                    <tr>
+                        <td><strong><?php esc_html_e( 'Mark as Sold Out', 'mira-event-list' ); ?></strong></td>
+                        <td><?php esc_html_e( 'Manual override for cash/door sales that never go through a booking record. When on, the event shows SOLD OUT everywhere regardless of ticket capacity, a SOLD OUT bar appears over the hero image on the event page, and the event page links to other events that still have tickets.', 'mira-event-list' ); ?></td>
                     </tr>
                     <tr>
                         <td><strong><?php esc_html_e( 'Enable Donations', 'mira-event-list' ); ?></strong></td>
