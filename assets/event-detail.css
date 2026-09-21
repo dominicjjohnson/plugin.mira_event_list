@@ -165,6 +165,7 @@
 }
 
 .mira-sold-out-alternatives a {
+    color: #c00;
     font-weight: 600;
     text-decoration: underline;
 }
