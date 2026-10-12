@@ -2,6 +2,13 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.11.0] - 2026-10-12
+
+### Added
+- **`[mira_events_grid booking="link"]`.** Optional link-only cards: instead
+  of the inline booking form, each card shows a "Get tickets — £x" button to
+  the event page (or SOLD OUT). Default (`booking="form"`) is unchanged.
+
 ## [2.10.1] - 2026-10-12
 
 ### Fixed

@@ -3,7 +3,7 @@
  * Plugin Name: Mira Event List
  * Plugin URI: https://github.com/dominicjjohnson/plugin.mira_event_list
  * Description: A WordPress plugin to manage events with custom post type, shortcode display, and Stripe ticket purchasing.
- * Version: 2.10.1
+ * Version: 2.11.0
  * Author: Miramedia / Dominic Johnson
  * Author URI: https://about.me/dominicjjohnson
  * License: GPL v2 or later
@@ -12,7 +12,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'MIRA_EVENT_LIST_VERSION', '2.10.1' );
+define( 'MIRA_EVENT_LIST_VERSION', '2.11.0' );
 define( 'MIRA_EVENT_LIST_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'MIRA_EVENT_LIST_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -1363,7 +1363,8 @@ class MiraEventList {
     // an inline booking widget per card (same markup/JS as the single event).
 
     public function events_grid_shortcode( $atts ) {
-        $atts = shortcode_atts( array( 'limit' => -1 ), $atts, 'mira_events_grid' );
+        $atts = shortcode_atts( array( 'limit' => -1, 'booking' => 'form' ), $atts, 'mira_events_grid' );
+        $link_only = ( 'link' === $atts['booking'] );
 
         $events = $this->upcoming_events_query( (int) $atts['limit'] );
         if ( ! $events->have_posts() ) {
@@ -1396,7 +1397,9 @@ class MiraEventList {
                             <div class="twc-event-card__venue"><?php echo esc_html( $location ); ?></div>
                         <?php endif; ?>
                         <div class="twc-event-card__book">
-                            <?php echo $this->render_booking_form( $post_id, array( 'show_note' => false ) ); ?>
+                            <?php echo $link_only
+                                ? $this->render_card_cta( $post_id, $permalink )
+                                : $this->render_booking_form( $post_id, array( 'show_note' => false ) ); ?>
                         </div>
                     </div>
                 </article>
@@ -1405,6 +1408,26 @@ class MiraEventList {
         <?php
         wp_reset_postdata();
         return ob_get_clean();
+    }
+
+    /**
+     * Compact call-to-action for [mira_events_grid booking="link"]: price and a
+     * button linking to the event page (where the booking form lives), or a
+     * SOLD OUT label.
+     */
+    private function render_card_cta( $post_id, $permalink ) {
+        $capacity = MiraBookings::event_capacity( $post_id );
+        if ( $capacity['sold_out'] ) {
+            return '<span class="twc-event-card__soldout">' . esc_html__( 'SOLD OUT', 'mira-event-list' ) . '</span>';
+        }
+        $tickets_enabled = get_post_meta( $post_id, '_tickets_enabled', true );
+        $ticket_price    = floatval( get_post_meta( $post_id, '_ticket_price', true ) );
+        $label = ( $tickets_enabled && $ticket_price > 0 )
+            /* translators: %s: ticket price */
+            ? sprintf( __( 'Get tickets — £%s', 'mira-event-list' ), number_format( $ticket_price, 2 ) )
+            : __( 'More info', 'mira-event-list' );
+        return $this->tickets_left_notice( $capacity )
+            . '<a class="twc-event-card__cta" href="' . esc_url( $permalink ) . '">' . esc_html( $label ) . '</a>';
     }
 
     // ── [mira_events_banner] shortcode ─────────────────────────────────
