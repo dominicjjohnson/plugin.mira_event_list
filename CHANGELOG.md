@@ -2,6 +2,23 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.10.1] - 2026-10-12
+
+### Fixed
+- **Event FAQs were deleted on save.** `update_post_meta()` unslashes its
+  value, which corrupted the stored JSON whenever an FAQ contained an
+  apostrophe, quote mark or non-ASCII character (e.g. £). The edit screen then
+  read the FAQs back as empty and the next save overwrote them. POSTed rows are
+  now `wp_unslash()`ed before sanitising and the JSON is `wp_slash()`ed
+  before saving. The same fix is applied to documents, charities, lineup
+  (people) and talks, which had the same latent bug.
+
+### Added
+- **FAQs on the single event page.** Event FAQs are now rendered below the
+  booking section (or below the SOLD OUT notice) as a collapsible
+  `<details>` list. Nothing is output when an event has no FAQs. Styles are
+  in `assets/event-detail.css`.
+
 ## [2.10.0] - 2026-09-21
 
 ### Added

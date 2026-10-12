@@ -3,7 +3,7 @@
  * Plugin Name: Mira Event List
  * Plugin URI: https://github.com/dominicjjohnson/plugin.mira_event_list
  * Description: A WordPress plugin to manage events with custom post type, shortcode display, and Stripe ticket purchasing.
- * Version: 2.10.0
+ * Version: 2.10.1
  * Author: Miramedia / Dominic Johnson
  * Author URI: https://about.me/dominicjjohnson
  * License: GPL v2 or later
@@ -12,7 +12,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'MIRA_EVENT_LIST_VERSION', '2.10.0' );
+define( 'MIRA_EVENT_LIST_VERSION', '2.10.1' );
 define( 'MIRA_EVENT_LIST_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'MIRA_EVENT_LIST_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -375,7 +375,7 @@ class MiraEventList {
         if ( isset( $_POST['event_documents_nonce'] ) && wp_verify_nonce( $_POST['event_documents_nonce'], 'mira_event_documents_nonce' ) ) {
             $docs = array();
             if ( ! empty( $_POST['event_documents'] ) && is_array( $_POST['event_documents'] ) ) {
-                foreach ( $_POST['event_documents'] as $row ) {
+                foreach ( wp_unslash( $_POST['event_documents'] ) as $row ) {
                     $url = esc_url_raw( $row['url'] ?? '' );
                     if ( $url ) {
                         $docs[] = array(
@@ -386,14 +386,14 @@ class MiraEventList {
                     }
                 }
             }
-            update_post_meta( $post_id, '_event_documents', wp_json_encode( $docs ) );
+            update_post_meta( $post_id, '_event_documents', wp_slash( wp_json_encode( $docs ) ) );
         }
 
         // FAQs
         if ( isset( $_POST['event_faqs_nonce'] ) && wp_verify_nonce( $_POST['event_faqs_nonce'], 'mira_event_faqs_nonce' ) ) {
             $faqs = array();
             if ( ! empty( $_POST['event_faqs'] ) && is_array( $_POST['event_faqs'] ) ) {
-                foreach ( $_POST['event_faqs'] as $row ) {
+                foreach ( wp_unslash( $_POST['event_faqs'] ) as $row ) {
                     $q = sanitize_text_field( $row['question'] ?? '' );
                     $a = sanitize_textarea_field( $row['answer'] ?? '' );
                     if ( $q ) {
@@ -401,7 +401,7 @@ class MiraEventList {
                     }
                 }
             }
-            update_post_meta( $post_id, '_event_faqs', wp_json_encode( $faqs ) );
+            update_post_meta( $post_id, '_event_faqs', wp_slash( wp_json_encode( $faqs ) ) );
         }
 
         // Connections
@@ -621,36 +621,36 @@ class MiraEventList {
 
         $charities = array();
         if ( ! empty( $_POST['event_charities'] ) && is_array( $_POST['event_charities'] ) ) {
-            foreach ( $_POST['event_charities'] as $row ) {
+            foreach ( wp_unslash( $_POST['event_charities'] ) as $row ) {
                 $id = intval( $row['company_id'] ?? 0 );
                 if ( $id > 0 ) {
                     $charities[] = array( 'company_id' => $id, 'label' => sanitize_text_field( $row['label'] ?? '' ) );
                 }
             }
         }
-        update_post_meta( $post_id, '_event_charities', wp_json_encode( $charities ) );
+        update_post_meta( $post_id, '_event_charities', wp_slash( wp_json_encode( $charities ) ) );
 
         $people = array();
         if ( ! empty( $_POST['event_people'] ) && is_array( $_POST['event_people'] ) ) {
-            foreach ( $_POST['event_people'] as $row ) {
+            foreach ( wp_unslash( $_POST['event_people'] ) as $row ) {
                 $id = intval( $row['person_id'] ?? 0 );
                 if ( $id > 0 ) {
                     $people[] = array( 'person_id' => $id, 'description' => sanitize_text_field( $row['description'] ?? '' ) );
                 }
             }
         }
-        update_post_meta( $post_id, '_event_people', wp_json_encode( $people ) );
+        update_post_meta( $post_id, '_event_people', wp_slash( wp_json_encode( $people ) ) );
 
         $talks = array();
         if ( ! empty( $_POST['event_talks'] ) && is_array( $_POST['event_talks'] ) ) {
-            foreach ( $_POST['event_talks'] as $row ) {
+            foreach ( wp_unslash( $_POST['event_talks'] ) as $row ) {
                 $id = intval( $row['talk_id'] ?? 0 );
                 if ( $id > 0 ) {
                     $talks[] = array( 'talk_id' => $id );
                 }
             }
         }
-        update_post_meta( $post_id, '_event_talks', wp_json_encode( $talks ) );
+        update_post_meta( $post_id, '_event_talks', wp_slash( wp_json_encode( $talks ) ) );
     }
 
     // ── Documents meta box ──────────────────────────────────────────────
@@ -1119,6 +1119,21 @@ class MiraEventList {
                     </a>
                 <?php endif; ?>
             </div>
+
+            <?php
+            $faqs = json_decode( get_post_meta( $post_id, '_event_faqs', true ) ?: '[]', true ) ?: array();
+            $faqs = array_filter( $faqs, function ( $faq ) { return ! empty( $faq['question'] ); } );
+            if ( ! empty( $faqs ) ) : ?>
+                <div class="mira-event-faqs">
+                    <h3><?php esc_html_e( 'FAQs', 'mira-event-list' ); ?></h3>
+                    <?php foreach ( $faqs as $faq ) : ?>
+                        <details class="mira-faq">
+                            <summary><?php echo esc_html( $faq['question'] ); ?></summary>
+                            <div class="mira-faq-answer"><?php echo wpautop( esc_html( $faq['answer'] ?? '' ) ); ?></div>
+                        </details>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
 
         </div>
         <?php
