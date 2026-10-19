@@ -2,6 +2,19 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.12.0] - 2026-10-19
+
+### Added
+- **Complete a PAID booking from the admin.** When a buyer pays through Stripe
+  but never fills in the attendee form, the booking stays PAID with no
+  attendees, so it is missing from the door check-in list. The booking detail
+  screen now shows a "Complete this booking" form with one row per ticket.
+  Blank names/emails fall back to the buyer (attendee 1 = buyer's email,
+  others = "Guest of <buyer email>"). Submitting adds the attendees with the
+  usual ticket numbers, marks the booking COMPLETE, syncs Mailjet and
+  (optionally, on by default) emails the tickets.
+- "Add attendees" link on PAID rows in the bookings list.
+
 ## [2.11.0] - 2026-10-12
 
 ### Added

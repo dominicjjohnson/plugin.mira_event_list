@@ -56,6 +56,28 @@ class MiraAdminBookings {
             exit;
         }
 
+        if ( $action === 'complete_attendees' && isset( $_GET['booking_id'] ) && ( $_SERVER['REQUEST_METHOD'] ?? '' ) === 'POST' ) {
+            $booking_id = intval( $_GET['booking_id'] );
+            check_admin_referer( 'mira_complete_attendees_' . $booking_id );
+
+            if ( ! current_user_can( 'manage_options' ) ) {
+                wp_die( esc_html__( 'You do not have permission to do this.', 'mira-event-list' ) );
+            }
+
+            $result = $this->complete_paid_booking( $booking_id, wp_unslash( $_POST ) );
+
+            $args = array( 'page' => 'mira-bookings', 'booking_id' => $booking_id );
+            if ( is_wp_error( $result ) ) {
+                $args['complete_error'] = rawurlencode( $result->get_error_message() );
+            } else {
+                $args['completed']      = '1';
+                $args['completed_sent'] = (int) $result['sent'];
+            }
+
+            wp_safe_redirect( add_query_arg( $args, admin_url( 'edit.php?post_type=mira_event' ) ) );
+            exit;
+        }
+
         if ( $action === 'toggle_paid' && isset( $_GET['booking_id'] ) ) {
             $booking_id = intval( $_GET['booking_id'] );
             check_admin_referer( 'mira_toggle_paid_' . $booking_id );
@@ -523,6 +545,90 @@ class MiraAdminBookings {
         }
 
         return array( 'booking_id' => $booking_id, 'sent' => $sent, 'pending' => $received ? 0 : 1 );
+    }
+
+    /**
+     * Turn a "paid" booking (Stripe payment confirmed, but the buyer never
+     * filled in the attendee form) into a "complete" one by adding the
+     * attendees from the admin screen, so the tickets appear on the door list.
+     * Blank emails fall back to the lead booker's email; blank names fall back
+     * to the lead email (attendee 1) or "Guest of <lead email>".
+     *
+     * @return array|WP_Error array( 'sent' => int ) on success.
+     */
+    private function complete_paid_booking( $booking_id, array $data ) {
+        global $wpdb;
+        $bookings_table  = $wpdb->prefix . 'mira_bookings';
+        $attendees_table = $wpdb->prefix . 'mira_attendees';
+
+        $booking = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM $bookings_table WHERE id = %d", $booking_id
+        ) );
+        if ( ! $booking ) {
+            return new WP_Error( 'mira_complete', __( 'Booking not found.', 'mira-event-list' ) );
+        }
+        if ( $booking->status !== 'paid' ) {
+            return new WP_Error( 'mira_complete', __( 'Only bookings with status PAID can be completed here.', 'mira-event-list' ) );
+        }
+
+        $existing = intval( $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM $attendees_table WHERE booking_id = %d", $booking_id
+        ) ) );
+        $needed = max( 0, intval( $booking->quantity ) - $existing );
+
+        $lead_email    = sanitize_email( $booking->lead_email );
+        $raw_attendees = ( isset( $data['attendees'] ) && is_array( $data['attendees'] ) ) ? array_values( $data['attendees'] ) : array();
+        $attendees     = array();
+
+        // Validate every row before inserting any.
+        for ( $i = 0; $i < $needed; $i++ ) {
+            $row   = ( isset( $raw_attendees[ $i ] ) && is_array( $raw_attendees[ $i ] ) ) ? $raw_attendees[ $i ] : array();
+            $name  = sanitize_text_field( $row['name'] ?? '' );
+            $email = sanitize_email( $row['email'] ?? '' );
+
+            if ( $email === '' ) {
+                $email = $lead_email;
+            }
+            if ( ! is_email( $email ) ) {
+                /* translators: %d: attendee row number */
+                return new WP_Error( 'mira_complete', sprintf( __( 'Enter a valid email for attendee %d.', 'mira-event-list' ), $existing + $i + 1 ) );
+            }
+            if ( $name === '' ) {
+                $name = ( $existing + $i === 0 )
+                    ? $email
+                    /* translators: %s: lead booker email */
+                    : sprintf( __( 'Guest of %s', 'mira-event-list' ), $lead_email ? $lead_email : $email );
+            }
+            $attendees[] = array( 'name' => $name, 'email' => $email );
+        }
+
+        foreach ( $attendees as $idx => $att ) {
+            $position      = $existing + $idx + 1;
+            $ticket_number = $booking->booking_reference . '-' . str_pad( $position, 2, '0', STR_PAD_LEFT );
+            $wpdb->insert( $attendees_table, array(
+                'booking_id'    => $booking_id,
+                'name'          => $att['name'],
+                'email'         => $att['email'],
+                'ticket_number' => $ticket_number,
+                'is_lead'       => ( $position === 1 ) ? 1 : 0,
+            ), array( '%d', '%s', '%s', '%s', '%d' ) );
+        }
+
+        $wpdb->update(
+            $bookings_table,
+            array( 'status' => 'complete' ),
+            array( 'id' => $booking_id ),
+            array( '%s' ),
+            array( '%d' )
+        );
+
+        if ( class_exists( 'MiraMailjet' ) && MiraMailjet::is_enabled() ) {
+            MiraMailjet::sync_booking_attendees( $booking_id );
+        }
+
+        $sent = ! empty( $data['send_tickets'] ) ? $this->send_unsent_tickets( $booking_id ) : 0;
+
+        return array( 'sent' => $sent );
     }
 
     /**
@@ -1053,6 +1159,11 @@ class MiraAdminBookings {
                                     <strong><?php esc_html_e( 'Mark paid &amp; send', 'mira-event-list' ); ?></strong>
                                 </a><br>
                             <?php endif; ?>
+                            <?php if ( $b->status === 'paid' ) : ?>
+                                <a href="<?php echo esc_url( $detail_url ); ?>">
+                                    <strong><?php esc_html_e( 'Add attendees', 'mira-event-list' ); ?></strong>
+                                </a><br>
+                            <?php endif; ?>
                             <?php if ( $b->status === 'complete' ) : ?>
                                 <a href="<?php echo esc_url( $resend_url ); ?>"
                                    onclick="return confirm('<?php esc_attr_e( 'Re-send the ticket email to every attendee on this booking? A copy will be sent to the site admin.', 'mira-event-list' ); ?>')">
@@ -1133,6 +1244,14 @@ class MiraAdminBookings {
 
             <?php if ( isset( $_GET['marked_paid'] ) ) : ?>
                 <?php echo $this->marked_paid_notice( ! empty( $_GET['marked_paid'] ), intval( $_GET['paid_sent'] ?? 0 ) ); ?>
+            <?php endif; ?>
+
+            <?php if ( isset( $_GET['completed'] ) ) : ?>
+                <?php echo $this->completed_notice( intval( $_GET['completed_sent'] ?? 0 ) ); ?>
+            <?php endif; ?>
+
+            <?php if ( ! empty( $_GET['complete_error'] ) ) : ?>
+                <div class="notice notice-error"><p><?php echo esc_html( sanitize_text_field( wp_unslash( $_GET['complete_error'] ) ) ); ?></p></div>
             <?php endif; ?>
 
             <p>
@@ -1220,9 +1339,9 @@ class MiraAdminBookings {
 
             <h2><?php esc_html_e( 'Attendees', 'mira-event-list' ); ?></h2>
 
-            <?php if ( empty( $attendees ) ) : ?>
+            <?php if ( empty( $attendees ) && $booking->status !== 'paid' ) : ?>
                 <p><?php esc_html_e( 'No attendee details collected yet.', 'mira-event-list' ); ?></p>
-            <?php else : ?>
+            <?php elseif ( ! empty( $attendees ) ) : ?>
                 <table class="wp-list-table widefat fixed striped" style="max-width:700px">
                     <thead>
                         <tr>
@@ -1252,6 +1371,52 @@ class MiraAdminBookings {
                     <?php endforeach; ?>
                     </tbody>
                 </table>
+            <?php endif; ?>
+
+            <?php if ( $booking->status === 'paid' ) :
+                $needed       = max( 0, intval( $booking->quantity ) - count( $attendees ) );
+                $complete_url = add_query_arg( array(
+                    'page'       => 'mira-bookings',
+                    'action'     => 'complete_attendees',
+                    'booking_id' => $booking->id,
+                ), admin_url( 'edit.php?post_type=mira_event' ) );
+            ?>
+                <div style="max-width:700px;margin-top:20px;padding:4px 20px 8px;background:#fff;border:1px solid #c3c4c7;border-left:4px solid #1d4ed8">
+                    <h3><?php esc_html_e( 'Complete this booking', 'mira-event-list' ); ?></h3>
+                    <p><?php esc_html_e( 'Payment is confirmed but the buyer never filled in the attendee form, so these tickets are not on the door list yet. Add the attendees to mark the booking complete. Any blank name or email falls back to the buyer.', 'mira-event-list' ); ?></p>
+                    <form method="post" action="<?php echo esc_url( $complete_url ); ?>">
+                        <?php wp_nonce_field( 'mira_complete_attendees_' . $booking->id ); ?>
+                        <table class="widefat" style="margin-bottom:12px">
+                            <thead>
+                                <tr>
+                                    <th style="width:40px">#</th>
+                                    <th><?php esc_html_e( 'Name', 'mira-event-list' ); ?></th>
+                                    <th><?php esc_html_e( 'Email', 'mira-event-list' ); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            <?php for ( $i = 0; $i < $needed; $i++ ) :
+                                $position = count( $attendees ) + $i + 1; ?>
+                                <tr>
+                                    <td><?php echo intval( $position ); ?></td>
+                                    <td><input type="text" style="width:100%" name="attendees[<?php echo intval( $i ); ?>][name]"
+                                        placeholder="<?php echo esc_attr( $position === 1 ? __( 'Lead booker name', 'mira-event-list' ) : __( 'Guest name (optional)', 'mira-event-list' ) ); ?>"></td>
+                                    <td><input type="email" style="width:100%" name="attendees[<?php echo intval( $i ); ?>][email]"
+                                        value="<?php echo esc_attr( $position === 1 ? $booking->lead_email : '' ); ?>"
+                                        placeholder="<?php echo esc_attr( $booking->lead_email ); ?>"></td>
+                                </tr>
+                            <?php endfor; ?>
+                            </tbody>
+                        </table>
+                        <p>
+                            <label><input type="checkbox" name="send_tickets" value="1" checked>
+                                <?php esc_html_e( 'Email the tickets to these attendees', 'mira-event-list' ); ?></label>
+                        </p>
+                        <p>
+                            <button type="submit" class="button button-primary"><?php esc_html_e( 'Add attendees & mark complete', 'mira-event-list' ); ?></button>
+                        </p>
+                    </form>
+                </div>
             <?php endif; ?>
         </div>
         <?php
@@ -1385,6 +1550,18 @@ class MiraAdminBookings {
             )
             : __( 'No new ticket emails were needed.', 'mira-event-list' ) );
 
+        return '<div class="notice notice-success is-dismissible"><p>' . esc_html( $msg ) . '</p></div>';
+    }
+
+    private function completed_notice( $sent ) {
+        $msg = __( 'Attendees added and booking marked complete. They are now on the door list.', 'mira-event-list' );
+        if ( $sent > 0 ) {
+            $msg .= ' ' . sprintf(
+                /* translators: %d: number of ticket emails sent */
+                _n( '%d ticket email sent.', '%d ticket emails sent.', $sent, 'mira-event-list' ),
+                $sent
+            );
+        }
         return '<div class="notice notice-success is-dismissible"><p>' . esc_html( $msg ) . '</p></div>';
     }
 
