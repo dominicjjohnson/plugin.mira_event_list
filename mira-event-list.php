@@ -3,7 +3,7 @@
  * Plugin Name: Mira Event List
  * Plugin URI: https://github.com/dominicjjohnson/plugin.mira_event_list
  * Description: A WordPress plugin to manage events with custom post type, shortcode display, and Stripe ticket purchasing.
- * Version: 2.12.0
+ * Version: 2.13.0
  * Author: Miramedia / Dominic Johnson
  * Author URI: https://about.me/dominicjjohnson
  * License: GPL v2 or later
@@ -12,7 +12,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'MIRA_EVENT_LIST_VERSION', '2.12.0' );
+define( 'MIRA_EVENT_LIST_VERSION', '2.13.0' );
 define( 'MIRA_EVENT_LIST_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'MIRA_EVENT_LIST_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -2053,6 +2053,41 @@ class MiraEventList {
         add_settings_field( 'mira_mailjet_api_key',    __( 'API Key', 'mira-event-list' ),          array( $this, 'mailjet_api_key_render' ),    'mira_event_settings', 'mira_mailjet_section' );
         add_settings_field( 'mira_mailjet_secret_key', __( 'Secret Key', 'mira-event-list' ),       array( $this, 'mailjet_secret_key_render' ), 'mira_event_settings', 'mira_mailjet_section' );
         add_settings_field( 'mira_mailjet_list_id',    __( 'Contact List ID', 'mira-event-list' ),  array( $this, 'mailjet_list_id_render' ),    'mira_event_settings', 'mira_mailjet_section' );
+
+        // ── Social follow section ───────────────────────────────────────
+        register_setting( 'mira_event_settings', 'mira_social_message',       array( 'sanitize_callback' => 'sanitize_text_field' ) );
+        register_setting( 'mira_event_settings', 'mira_social_facebook_url',  array( 'sanitize_callback' => 'esc_url_raw' ) );
+        register_setting( 'mira_event_settings', 'mira_social_instagram_url', array( 'sanitize_callback' => 'esc_url_raw' ) );
+
+        add_settings_section(
+            'mira_social_section',
+            __( 'Social follow links', 'mira-event-list' ),
+            array( $this, 'social_section_callback' ),
+            'mira_event_settings'
+        );
+
+        add_settings_field( 'mira_social_message',       __( 'Message', 'mira-event-list' ),       array( $this, 'social_message_render' ),       'mira_event_settings', 'mira_social_section' );
+        add_settings_field( 'mira_social_facebook_url',  __( 'Facebook URL', 'mira-event-list' ),  array( $this, 'social_facebook_url_render' ),  'mira_event_settings', 'mira_social_section' );
+        add_settings_field( 'mira_social_instagram_url', __( 'Instagram URL', 'mira-event-list' ), array( $this, 'social_instagram_url_render' ), 'mira_event_settings', 'mira_social_section' );
+    }
+
+    public function social_section_callback() {
+        echo '<p>' . esc_html__( 'Follow buttons shown on the booking confirmation once tickets are sent. Leave both URLs blank to hide them.', 'mira-event-list' ) . '</p>';
+    }
+
+    public function social_message_render() {
+        $v = get_option( 'mira_social_message', '' );
+        echo '<input type="text" name="mira_social_message" value="' . esc_attr( $v ) . '" class="large-text" placeholder="' . esc_attr__( 'Stay in touch about this event and others coming along', 'mira-event-list' ) . '">';
+    }
+
+    public function social_facebook_url_render() {
+        $v = get_option( 'mira_social_facebook_url', '' );
+        echo '<input type="url" name="mira_social_facebook_url" value="' . esc_attr( $v ) . '" class="regular-text" placeholder="https://www.facebook.com/...">';
+    }
+
+    public function social_instagram_url_render() {
+        $v = get_option( 'mira_social_instagram_url', '' );
+        echo '<input type="url" name="mira_social_instagram_url" value="' . esc_attr( $v ) . '" class="regular-text" placeholder="https://www.instagram.com/...">';
     }
 
     public function sanitize_checkbox( $value ) {

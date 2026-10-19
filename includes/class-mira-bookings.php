@@ -314,7 +314,10 @@ class MiraBookings {
             array( '%d' )
         );
 
-        wp_send_json_success( array( 'message' => __( 'Tickets sent!', 'mira-event-list' ) ) );
+        wp_send_json_success( array(
+            'message' => __( 'Tickets sent!', 'mira-event-list' ),
+            'social'  => self::social_follow_html(),
+        ) );
     }
 
     // ── Stripe webhook ───────────────────────────────────────────────────
@@ -526,8 +529,43 @@ class MiraBookings {
                     </li>
                 <?php endforeach; ?>
             </ul>
+            <?php echo self::social_follow_html(); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside. ?>
         </div>
         <?php
         return ob_get_clean();
+    }
+
+    /**
+     * "Stay in touch" block with Facebook / Instagram buttons, shown once a
+     * booking is confirmed. Returns '' when neither URL is set in
+     * Settings → Social follow links.
+     */
+    public static function social_follow_html() {
+        $facebook  = esc_url( get_option( 'mira_social_facebook_url', '' ) );
+        $instagram = esc_url( get_option( 'mira_social_instagram_url', '' ) );
+        if ( ! $facebook && ! $instagram ) {
+            return '';
+        }
+
+        $message = get_option( 'mira_social_message', '' );
+        if ( $message === '' ) {
+            $message = __( 'Stay in touch about this event and others coming along', 'mira-event-list' );
+        }
+
+        $fb_icon = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M22 12a10 10 0 1 0-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.5 1.49-3.89 3.78-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0 0 22 12z"/></svg>';
+        $ig_icon = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 2.16c3.2 0 3.58.01 4.85.07 1.17.05 1.8.25 2.23.41.56.22.96.48 1.38.9.42.42.68.82.9 1.38.16.42.36 1.06.41 2.23.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.05 1.17-.25 1.8-.41 2.23-.22.56-.48.96-.9 1.38-.42.42-.82.68-1.38.9-.42.16-1.06.36-2.23.41-1.27.06-1.65.07-4.85.07s-3.58-.01-4.85-.07c-1.17-.05-1.8-.25-2.23-.41a3.72 3.72 0 0 1-1.38-.9 3.72 3.72 0 0 1-.9-1.38c-.16-.42-.36-1.06-.41-2.23C2.17 15.58 2.16 15.2 2.16 12s.01-3.58.07-4.85c.05-1.17.25-1.8.41-2.23.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.42-.16 1.06-.36 2.23-.41C8.42 2.17 8.8 2.16 12 2.16zM12 0C8.74 0 8.33.01 7.05.07 5.78.13 4.9.33 4.14.63a5.88 5.88 0 0 0-2.13 1.38A5.88 5.88 0 0 0 .63 4.14C.33 4.9.13 5.78.07 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.06 1.27.26 2.15.56 2.91.31.79.72 1.46 1.38 2.13a5.88 5.88 0 0 0 2.13 1.38c.76.3 1.64.5 2.91.56C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c1.27-.06 2.15-.26 2.91-.56a5.88 5.88 0 0 0 2.13-1.38 5.88 5.88 0 0 0 1.38-2.13c.3-.76.5-1.64.56-2.91.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.06-1.27-.26-2.15-.56-2.91a5.88 5.88 0 0 0-1.38-2.13A5.88 5.88 0 0 0 19.86.63C19.1.33 18.22.13 16.95.07 15.67.01 15.26 0 12 0zm0 5.84a6.16 6.16 0 1 0 0 12.32 6.16 6.16 0 0 0 0-12.32zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.41-11.85a1.44 1.44 0 1 0 0 2.88 1.44 1.44 0 0 0 0-2.88z"/></svg>';
+
+        $html  = '<div class="mira-social-follow">';
+        $html .= '<p class="mira-social-message">' . esc_html( $message ) . '</p>';
+        $html .= '<div class="mira-social-buttons">';
+        if ( $facebook ) {
+            $html .= '<a class="mira-social-btn mira-social-facebook" href="' . $facebook . '" target="_blank" rel="noopener">' . $fb_icon . '<span>' . esc_html__( 'Follow on Facebook', 'mira-event-list' ) . '</span></a>';
+        }
+        if ( $instagram ) {
+            $html .= '<a class="mira-social-btn mira-social-instagram" href="' . $instagram . '" target="_blank" rel="noopener">' . $ig_icon . '<span>' . esc_html__( 'Follow on Instagram', 'mira-event-list' ) . '</span></a>';
+        }
+        $html .= '</div></div>';
+
+        return $html;
     }
 }

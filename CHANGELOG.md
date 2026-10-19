@@ -2,6 +2,18 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.13.0] - 2026-10-19
+
+### Added
+- **Social follow buttons on the booking confirmation.** Once tickets are sent
+  (both the "Tickets sent!" message after the attendee form and the
+  confirmation shown on revisiting the page) a "Stay in touch about this event
+  and others coming along" message is shown with Follow on Facebook / Follow
+  on Instagram buttons. Configure under Settings → Social follow links
+  (message, Facebook URL, Instagram URL); hidden when both URLs are blank.
+  Not shown on the attendee form itself, so buyers aren't pulled away before
+  their tickets are sent.
+
 ## [2.12.0] - 2026-10-19
 
 ### Added

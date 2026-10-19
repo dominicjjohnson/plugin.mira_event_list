@@ -437,3 +437,55 @@
     justify-content: flex-end;
     margin-top: 16px;
 }
+
+/* ── Social follow (confirmation) ──────────────────────────────────── */
+
+.mira-social-follow {
+    margin: 28px 0 0;
+    padding-top: 24px;
+    border-top: 1px solid #e8e8e8;
+}
+
+.mira-booking-confirmed .mira-social-follow .mira-social-message,
+.mira-tickets-sent .mira-social-follow .mira-social-message {
+    font-weight: 600;
+    color: #222;
+    margin: 0 0 14px;
+}
+
+.mira-social-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
+.mira-social-btn,
+.mira-social-btn:visited {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-decoration: none;
+}
+
+.mira-social-btn:hover,
+.mira-social-btn:focus {
+    color: #fff;
+    opacity: .9;
+    text-decoration: none;
+}
+
+.mira-social-facebook {
+    background: #1877f2;
+}
+
+.mira-social-instagram {
+    background: #c13584;
+    background: linear-gradient(45deg, #f09433 0%, #dc2743 50%, #bc1888 100%);
+}

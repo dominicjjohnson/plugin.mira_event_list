@@ -184,7 +184,8 @@
                         ok.innerHTML =
                             '<div class="mira-confirmed-icon">&#10003;</div>' +
                             '<h3>Tickets sent!</h3>' +
-                            '<p>Check your inbox &mdash; tickets have been emailed to everyone listed. See you at the event!</p>';
+                            '<p>Check your inbox &mdash; tickets have been emailed to everyone listed. See you at the event!</p>' +
+                            ((data.data && data.data.social) ? data.data.social : '');
                         af.replaceWith(ok);
                     } else {
                         msgEl.textContent = data.data || 'Something went wrong. Please try again.';
