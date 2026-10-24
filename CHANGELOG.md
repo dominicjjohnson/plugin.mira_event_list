@@ -2,6 +2,14 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.15.0] - 2026-10-24
+
+### Added
+- **"See {name} live" on person pages.** Single `mmevmt_person` pages now list
+  the upcoming events that person is booked on (from each event's Lineup
+  box): date badge, title, venue, their role, and a Tickets link (or Sold
+  out). Nothing is output if they have no upcoming shows.
+
 ## [2.14.0] - 2026-10-24
 
 ### Changed

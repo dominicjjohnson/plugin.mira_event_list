@@ -3,7 +3,7 @@
  * Plugin Name: Mira Event List
  * Plugin URI: https://github.com/dominicjjohnson/plugin.mira_event_list
  * Description: A WordPress plugin to manage events with custom post type, shortcode display, and Stripe ticket purchasing.
- * Version: 2.14.0
+ * Version: 2.15.0
  * Author: Miramedia / Dominic Johnson
  * Author URI: https://about.me/dominicjjohnson
  * License: GPL v2 or later
@@ -12,7 +12,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'MIRA_EVENT_LIST_VERSION', '2.14.0' );
+define( 'MIRA_EVENT_LIST_VERSION', '2.15.0' );
 define( 'MIRA_EVENT_LIST_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'MIRA_EVENT_LIST_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -46,6 +46,7 @@ class MiraEventList {
         add_action( 'admin_init',       array( $this, 'settings_init' ) );
         add_action( 'after_setup_theme', array( $this, 'add_image_sizes' ) );
         add_filter( 'the_content',       array( $this, 'event_detail_content' ) );
+        add_filter( 'the_content',       array( $this, 'person_upcoming_shows' ), 20 );
         add_filter( 'post_thumbnail_html', array( $this, 'maybe_add_hero_sold_out_bar' ), 10, 5 );
         add_filter( 'wp_get_nav_menu_items', array( $this, 'nav_menu_ticket_items' ), 10, 3 );
         add_filter( 'manage_mira_event_posts_columns',       array( $this, 'event_admin_columns' ) );
@@ -947,6 +948,58 @@ class MiraEventList {
      * Upcoming events (soonest first) as a WP_Query. Shared by the grid and
      * next-event rotator shortcodes.
      */
+    /**
+     * Single person page (mmevmt_person): append "See {name} live" — the
+     * upcoming events this person is booked on (via the event's Lineup box),
+     * each with date, venue and a link to the event page. Runs after the
+     * TEDx plugin's social links/videos filter (priority 10).
+     */
+    public function person_upcoming_shows( $content ) {
+        if ( ! is_singular( 'mmevmt_person' ) || ! in_the_loop() || ! is_main_query() ) {
+            return $content;
+        }
+        $person_id = get_the_ID();
+        $events    = $this->upcoming_events_query( -1 );
+        $items     = '';
+        foreach ( $events->posts as $ev ) {
+            $people = json_decode( get_post_meta( $ev->ID, '_event_people', true ) ?: '[]', true ) ?: array();
+            $role   = null;
+            foreach ( $people as $p ) {
+                if ( (int) ( $p['person_id'] ?? 0 ) === $person_id ) {
+                    $role = (string) ( $p['description'] ?? '' );
+                    break;
+                }
+            }
+            if ( null === $role ) {
+                continue;
+            }
+            $date     = get_post_meta( $ev->ID, '_event_date', true );
+            $location = get_post_meta( $ev->ID, '_event_location', true );
+            $sold_out = ! empty( MiraBookings::event_capacity( $ev->ID )['sold_out'] );
+            $items   .= '<li class="mira-person-show">'
+                . '<div class="mira-person-show__date">'
+                .   '<span class="mira-person-show__day">' . esc_html( $date ? date_i18n( 'j', strtotime( $date ) ) : '' ) . '</span>'
+                .   '<span class="mira-person-show__month">' . esc_html( $date ? date_i18n( 'M', strtotime( $date ) ) : '' ) . '</span>'
+                . '</div>'
+                . '<div class="mira-person-show__info">'
+                .   '<a class="mira-person-show__title" href="' . esc_url( get_permalink( $ev ) ) . '">' . esc_html( get_the_title( $ev ) ) . '</a>'
+                .   ( $location ? '<span class="mira-person-show__venue">' . esc_html( $location ) . '</span>' : '' )
+                .   ( '' !== $role ? '<span class="mira-person-show__role">' . esc_html( $role ) . '</span>' : '' )
+                . '</div>'
+                . ( $sold_out
+                    ? '<span class="mira-person-show__cta mira-person-show__cta--soldout">' . esc_html__( 'Sold out', 'mira-event-list' ) . '</span>'
+                    : '<a class="mira-person-show__cta" href="' . esc_url( get_permalink( $ev ) ) . '">' . esc_html__( 'Tickets', 'mira-event-list' ) . '</a>' )
+                . '</li>';
+        }
+        wp_reset_postdata();
+        if ( '' === $items ) {
+            return $content;
+        }
+        /* translators: %s: person's name */
+        $heading = sprintf( __( 'See %s live', 'mira-event-list' ), get_the_title( $person_id ) );
+        return $content . '<section class="mira-person-shows"><h2>' . esc_html( $heading ) . '</h2><ul class="mira-person-shows__list">' . $items . '</ul></section>';
+    }
+
     private function upcoming_events_query( $limit = -1 ) {
         return new WP_Query( array(
             'post_type'      => 'mira_event',
