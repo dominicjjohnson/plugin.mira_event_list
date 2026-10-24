@@ -2,6 +2,14 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.14.0] - 2026-10-24
+
+### Changed
+- **Lineup links to each person's profile page.** On the event detail page,
+  each act's photo and name in the Lineup now link to their single person
+  page, matching the Charity section. Link styling inherits the existing name
+  colour (no underline) with a slight fade on hover.
+
 ## [2.13.0] - 2026-10-19
 
 ### Added
