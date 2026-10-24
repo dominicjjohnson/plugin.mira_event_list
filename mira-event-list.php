@@ -12,7 +12,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'MIRA_EVENT_LIST_VERSION', '2.13.0' );
+define( 'MIRA_EVENT_LIST_VERSION', '2.14.0' );
 define( 'MIRA_EVENT_LIST_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'MIRA_EVENT_LIST_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -1018,16 +1018,17 @@ class MiraEventList {
                             if ( ! $person ) continue;
                             $thumb     = get_the_post_thumbnail( $person->ID, 'medium' );
                             $job_title = get_post_meta( $person->ID, 'speaker_speaker_job_title', true );
+                            $url       = get_permalink( $person->ID );
                         ?>
                             <div class="mira-person-item">
                                 <?php if ( $thumb ) : ?>
-                                    <div class="mira-person-photo"><?php echo $thumb; ?></div>
+                                    <a href="<?php echo esc_url( $url ); ?>" class="mira-person-photo"><?php echo $thumb; ?></a>
                                 <?php endif; ?>
                                 <div class="mira-person-info">
                                     <?php if ( ! empty( $item['description'] ) ) : ?>
                                         <span class="mira-person-role"><?php echo esc_html( $item['description'] ); ?></span>
                                     <?php endif; ?>
-                                    <h4><?php echo esc_html( $person->post_title ); ?></h4>
+                                    <h4><a href="<?php echo esc_url( $url ); ?>"><?php echo esc_html( $person->post_title ); ?></a></h4>
                                     <?php if ( $job_title ) : ?>
                                         <p class="mira-person-title"><?php echo esc_html( $job_title ); ?></p>
                                     <?php endif; ?>

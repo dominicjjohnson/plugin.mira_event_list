@@ -110,6 +110,10 @@
     text-align: center;
 }
 
+.mira-person-photo {
+    display: block;
+}
+
 .mira-person-photo img {
     width: 100%;
     border-radius: 8px;
@@ -133,6 +137,16 @@
     font-size: 15px;
     font-weight: 700;
     color: #222;
+}
+
+.mira-person-info h4 a {
+    text-decoration: none;
+    color: inherit;
+}
+
+.mira-person-info h4 a:hover,
+.mira-person-photo:hover {
+    opacity: .75;
 }
 
 .mira-person-title {
