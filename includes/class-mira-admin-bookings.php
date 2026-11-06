@@ -1287,6 +1287,12 @@ class MiraAdminBookings {
                     <th><?php esc_html_e( 'Tickets', 'mira-event-list' ); ?></th>
                     <td><?php echo intval( $booking->quantity ); ?> × £<?php echo number_format( $booking->ticket_price, 2 ); ?></td>
                 </tr>
+                <?php if ( ! empty( $booking->coupon_code ) ) : ?>
+                <tr>
+                    <th><?php esc_html_e( 'Coupon', 'mira-event-list' ); ?></th>
+                    <td><code><?php echo esc_html( $booking->coupon_code ); ?></code></td>
+                </tr>
+                <?php endif; ?>
                 <?php if ( $booking->donation_amount > 0 ) : ?>
                 <tr>
                     <th><?php esc_html_e( 'Donation', 'mira-event-list' ); ?></th>

@@ -14,6 +14,9 @@ class MiraBookings {
         add_action( 'wp_ajax_mira_save_attendees',        array( $this, 'ajax_save_attendees' ) );
         add_action( 'wp_ajax_nopriv_mira_save_attendees', array( $this, 'ajax_save_attendees' ) );
 
+        add_action( 'wp_ajax_mira_check_coupon',        array( $this, 'ajax_check_coupon' ) );
+        add_action( 'wp_ajax_nopriv_mira_check_coupon', array( $this, 'ajax_check_coupon' ) );
+
         add_action( 'wp_ajax_mira_log_client_error',        array( $this, 'ajax_log_client_error' ) );
         add_action( 'wp_ajax_nopriv_mira_log_client_error', array( $this, 'ajax_log_client_error' ) );
 
@@ -84,6 +87,48 @@ class MiraBookings {
         return $cap;
     }
 
+    // ── Coupons ──────────────────────────────────────────────────────────
+
+    /**
+     * True when the event has a coupon set up (a code and a price). Used to
+     * show the "Have a coupon code?" link; the code itself never reaches the
+     * browser.
+     */
+    public static function event_has_coupon( $event_id ) {
+        return get_post_meta( $event_id, '_coupon_code', true ) !== ''
+            && get_post_meta( $event_id, '_coupon_price', true ) !== '';
+    }
+
+    /**
+     * Per-ticket coupon price if $code matches the event's coupon (trimmed,
+     * case-insensitive), otherwise null.
+     */
+    public static function coupon_price( $event_id, $code ) {
+        $code = trim( (string) $code );
+        if ( $code === '' || ! self::event_has_coupon( $event_id ) ) {
+            return null;
+        }
+        $event_code = trim( (string) get_post_meta( $event_id, '_coupon_code', true ) );
+        if ( strcasecmp( $code, $event_code ) !== 0 ) {
+            return null;
+        }
+        return max( 0.0, floatval( get_post_meta( $event_id, '_coupon_price', true ) ) );
+    }
+
+    public function ajax_check_coupon() {
+        check_ajax_referer( 'mira_booking_nonce', 'nonce' );
+
+        $event_id = intval( $_POST['event_id'] ?? 0 );
+        $code     = sanitize_text_field( wp_unslash( $_POST['coupon'] ?? '' ) );
+
+        $price = self::coupon_price( $event_id, $code );
+        if ( $price === null ) {
+            wp_send_json_error( __( 'Sorry, that coupon code isn\'t valid for this event.', 'mira-event-list' ) );
+        }
+
+        wp_send_json_success( array( 'price' => round( $price, 2 ) ) );
+    }
+
     private function generate_booking_reference() {
         global $wpdb;
         $table = $wpdb->prefix . 'mira_bookings';
@@ -114,6 +159,7 @@ class MiraBookings {
         $quantity   = intval( $_POST['quantity'] ?? 0 );
         $donation   = floatval( $_POST['donation'] ?? 0 );
         $lead_email = sanitize_email( $_POST['lead_email'] ?? '' );
+        $coupon     = trim( sanitize_text_field( wp_unslash( $_POST['coupon'] ?? '' ) ) );
 
         if ( empty( $lead_email ) || ! is_email( $lead_email ) ) {
             wp_send_json_error( __( 'Please enter a valid email address.', 'mira-event-list' ) );
@@ -155,10 +201,26 @@ class MiraBookings {
             }
         }
 
-        $ticket_price   = floatval( get_post_meta( $event_id, '_ticket_price', true ) );
+        $ticket_price = floatval( get_post_meta( $event_id, '_ticket_price', true ) );
+        $coupon_code  = '';
+        if ( $coupon !== '' ) {
+            // Price always comes from the server, never from the browser.
+            $coupon_price = self::coupon_price( $event_id, $coupon );
+            if ( $coupon_price === null ) {
+                wp_send_json_error( __( 'Sorry, that coupon code isn\'t valid for this event.', 'mira-event-list' ) );
+            }
+            $ticket_price = $coupon_price;
+            $coupon_code  = substr( strtoupper( $coupon ), 0, 50 );
+        }
+
         $donation       = max( 0.0, $donation );
         $total          = ( $ticket_price * $quantity ) + $donation;
         $donation_pence = intval( round( $donation * 100 ) );
+
+        // Stripe can't take card payments under 30p.
+        if ( $total < 0.30 ) {
+            wp_send_json_error( __( 'Card payments must be at least £0.30. Please contact us to book.', 'mira-event-list' ) );
+        }
 
         global $wpdb;
         $bookings_table = $wpdb->prefix . 'mira_bookings';
@@ -171,10 +233,11 @@ class MiraBookings {
             'lead_email'        => $lead_email,
             'quantity'          => $quantity,
             'ticket_price'      => $ticket_price,
+            'coupon_code'       => $coupon_code,
             'donation_amount'   => $donation,
             'total_amount'      => $total,
             'status'            => 'pending',
-        ), array( '%d', '%s', '%s', '%d', '%f', '%f', '%f', '%s' ) );
+        ), array( '%d', '%s', '%s', '%d', '%f', '%s', '%f', '%f', '%s' ) );
 
         if ( ! $inserted ) {
             wp_send_json_error( __( 'Could not create booking. Please try again.', 'mira-event-list' ) );
@@ -183,7 +246,8 @@ class MiraBookings {
         $booking_id = $wpdb->insert_id;
 
         $session = $this->stripe->create_checkout_session(
-            $event_id, $quantity, $donation_pence, $booking_id, $booking_reference, $lead_email
+            $event_id, $quantity, $donation_pence, $booking_id, $booking_reference, $lead_email,
+            $ticket_price, $coupon_code
         );
 
         if ( is_wp_error( $session ) ) {

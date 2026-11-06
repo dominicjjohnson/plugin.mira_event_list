@@ -489,3 +489,46 @@
     background: #c13584;
     background: linear-gradient(45deg, #f09433 0%, #dc2743 50%, #bc1888 100%);
 }
+
+/* ── Coupon codes ───────────────────────────────────────────────────── */
+.mira-coupon {
+    margin-top: 10px;
+    font-size: 14px;
+}
+.mira-coupon-toggle,
+.mira-coupon-remove {
+    color: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+}
+.mira-coupon-fields {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+.mira-coupon-fields[hidden] { display: none; }
+.mira-coupon-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 6px 8px;
+    font-size: 14px;
+    text-transform: uppercase;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+.mira-coupon-input:disabled { background: #f3f3f3; }
+.mira-coupon-apply {
+    flex: 0 0 auto;
+    padding: 6px 14px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: #f7f7f7;
+    color: #222;
+    cursor: pointer;
+}
+.mira-coupon-apply[hidden] { display: none; }
+.mira-coupon-msg { margin: 6px 0 0; }
+.mira-coupon-msg:empty { display: none; }
+.mira-coupon-msg.is-error   { color: #b00020; }
+.mira-coupon-msg.is-success { color: #1a7f37; }

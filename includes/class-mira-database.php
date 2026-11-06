@@ -21,6 +21,7 @@ class MiraDatabase {
             lead_email varchar(255) NOT NULL DEFAULT '',
             quantity smallint(5) UNSIGNED NOT NULL DEFAULT 1,
             ticket_price decimal(10,2) NOT NULL DEFAULT 0.00,
+            coupon_code varchar(50) NOT NULL DEFAULT '',
             donation_amount decimal(10,2) NOT NULL DEFAULT 0.00,
             total_amount decimal(10,2) NOT NULL DEFAULT 0.00,
             status varchar(20) NOT NULL DEFAULT 'pending',

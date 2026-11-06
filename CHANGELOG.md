@@ -2,6 +2,18 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.17.0] - 2026-11-06
+
+### Added
+- **Coupon codes.** Each event can have one coupon: set a code and a coupon
+  ticket price in the event's Ticketing box. Events with a coupon show a
+  "Have a coupon code?" link under the booking form; a valid code (not
+  case-sensitive) switches the form to the coupon price. The price is
+  re-checked on the server when the booking is made, so it can't be changed
+  in the browser. The coupon used is stored on the booking (new `coupon_code`
+  column), shown on the admin booking detail page, and named on the Stripe
+  line item and metadata. The code itself is never sent to the page.
+
 ## [2.16.0] - 2026-10-31
 
 ### Added

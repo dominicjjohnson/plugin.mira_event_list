@@ -3,7 +3,7 @@
  * Plugin Name: Mira Event List
  * Plugin URI: https://github.com/dominicjjohnson/plugin.mira_event_list
  * Description: A WordPress plugin to manage events with custom post type, shortcode display, and Stripe ticket purchasing.
- * Version: 2.16.0
+ * Version: 2.17.0
  * Author: Miramedia / Dominic Johnson
  * Author URI: https://about.me/dominicjjohnson
  * License: GPL v2 or later
@@ -12,7 +12,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'MIRA_EVENT_LIST_VERSION', '2.16.0' );
+define( 'MIRA_EVENT_LIST_VERSION', '2.17.0' );
 define( 'MIRA_EVENT_LIST_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'MIRA_EVENT_LIST_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -253,6 +253,8 @@ class MiraEventList {
         $max_tickets     = (int) get_post_meta( $post->ID, '_max_tickets', true );
         $manual_sold_out = get_post_meta( $post->ID, '_manual_sold_out', true );
         $mailjet_tag     = get_post_meta( $post->ID, '_mailjet_event_tag', true );
+        $coupon_code     = get_post_meta( $post->ID, '_coupon_code', true );
+        $coupon_price    = get_post_meta( $post->ID, '_coupon_price', true );
         $capacity        = MiraBookings::event_capacity( $post->ID );
         $mailjet_auto    = MiraMailjet::generate_event_tag( $post->ID );
         ?>
@@ -299,6 +301,25 @@ class MiraEventList {
                             <?php endif; ?>
                         <?php endif; ?>
                     </p>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="coupon_code"><?php esc_html_e( 'Coupon Code', 'mira-event-list' ); ?></label></th>
+                <td>
+                    <input type="text" id="coupon_code" name="coupon_code"
+                           value="<?php echo esc_attr( $coupon_code ); ?>"
+                           maxlength="50" class="regular-text" autocapitalize="characters" spellcheck="false">
+                    <p class="description"><?php esc_html_e( 'Optional. Buyers who enter this code (not case-sensitive) pay the coupon price below instead of the normal price. Leave blank for no coupon.', 'mira-event-list' ); ?></p>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="coupon_price"><?php esc_html_e( 'Coupon Ticket Price', 'mira-event-list' ); ?></label></th>
+                <td>
+                    <span style="font-size:14px;margin-right:4px;">£</span>
+                    <input type="number" id="coupon_price" name="coupon_price"
+                           value="<?php echo esc_attr( $coupon_price ); ?>"
+                           step="0.01" min="0" style="width:100px;">
+                    <p class="description"><?php esc_html_e( 'Price per ticket when the coupon is used, e.g. 10.00. Card payments must total at least £0.30, so free tickets can\'t be booked with a coupon.', 'mira-event-list' ); ?></p>
                 </td>
             </tr>
             <tr>
@@ -416,6 +437,21 @@ class MiraEventList {
         update_post_meta( $post_id, '_tickets_enabled', isset( $_POST['tickets_enabled'] ) ? '1' : '' );
         if ( isset( $_POST['ticket_price'] ) ) {
             update_post_meta( $post_id, '_ticket_price', (string) floatval( $_POST['ticket_price'] ) );
+        }
+        if ( isset( $_POST['coupon_code'] ) ) {
+            $coupon_code = substr( trim( sanitize_text_field( wp_unslash( $_POST['coupon_code'] ) ) ), 0, 50 );
+            if ( $coupon_code === '' ) {
+                delete_post_meta( $post_id, '_coupon_code' );
+            } else {
+                update_post_meta( $post_id, '_coupon_code', $coupon_code );
+            }
+        }
+        if ( isset( $_POST['coupon_price'] ) ) {
+            if ( $_POST['coupon_price'] === '' ) {
+                delete_post_meta( $post_id, '_coupon_price' );
+            } else {
+                update_post_meta( $post_id, '_coupon_price', (string) max( 0.0, floatval( $_POST['coupon_price'] ) ) );
+            }
         }
         if ( isset( $_POST['max_tickets'] ) ) {
             update_post_meta( $post_id, '_max_tickets', max( 0, intval( $_POST['max_tickets'] ) ) );
@@ -894,6 +930,7 @@ class MiraEventList {
                   data-ajax-url="<?php echo esc_url( $ajax_url ); ?>"
                   data-nonce="<?php echo esc_attr( wp_create_nonce( 'mira_booking_nonce' ) ); ?>"
                   data-ticket-price="<?php echo esc_attr( $ticket_price ); ?>"
+                  <?php if ( MiraBookings::event_has_coupon( $post_id ) ) echo 'data-has-coupon="1"'; ?>
                   data-fallback-url="<?php echo esc_url( $fallback_url ); ?>">
                 <div class="mira-booking-fields">
                     <div class="mira-qty-wrap">
@@ -1134,6 +1171,7 @@ class MiraEventList {
                           data-ajax-url="<?php echo esc_url( $ajax_url ); ?>"
                           data-nonce="<?php echo esc_attr( wp_create_nonce( 'mira_booking_nonce' ) ); ?>"
                           data-ticket-price="<?php echo esc_attr( $ticket_price ); ?>"
+                          <?php if ( MiraBookings::event_has_coupon( $post_id ) ) echo 'data-has-coupon="1"'; ?>
                           data-fallback-url="<?php echo esc_url( $fallback_url ); ?>">
                         <div class="mira-booking-fields">
                             <div class="mira-qty-wrap">
@@ -1255,6 +1293,7 @@ class MiraEventList {
                       data-ajax-url="<?php echo esc_url( $ajax_url ); ?>"
                       data-nonce="<?php echo esc_attr( wp_create_nonce( 'mira_booking_nonce' ) ); ?>"
                       data-ticket-price="<?php echo esc_attr( $ticket_price ); ?>"
+                      <?php if ( MiraBookings::event_has_coupon( $post_id ) ) echo 'data-has-coupon="1"'; ?>
                       data-fallback-url="<?php echo esc_url( $fallback_url ); ?>">
                     <div class="mira-booking-fields">
                         <div class="mira-qty-wrap">
@@ -1948,6 +1987,7 @@ class MiraEventList {
                                       data-ajax-url="<?php echo esc_url( $ajax_url ); ?>"
                                       data-nonce="<?php echo esc_attr( wp_create_nonce( 'mira_booking_nonce' ) ); ?>"
                                       data-ticket-price="<?php echo esc_attr( $ticket_price ); ?>"
+                                      <?php if ( MiraBookings::event_has_coupon( $post_id ) ) echo 'data-has-coupon="1"'; ?>
                                       data-fallback-url="<?php echo esc_url( $fallback_url ); ?>">
 
                                     <div class="mira-booking-fields">

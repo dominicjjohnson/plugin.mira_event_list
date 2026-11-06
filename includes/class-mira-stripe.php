@@ -29,7 +29,14 @@ class MiraStripe {
         return $secret !== '' ? $secret : get_option( 'mira_stripe_webhook_secret', '' );
     }
 
-    public function create_checkout_session( $event_id, $quantity, $donation_pence, $booking_id, $booking_reference, $customer_email = '' ) {
+    /**
+     * @param float|null $ticket_price Per-ticket price in GBP to charge. Null
+     *                                 uses the event's normal price; a coupon
+     *                                 price is passed in by MiraBookings.
+     * @param string     $coupon_code  Coupon applied, if any (shown on the
+     *                                 Stripe line item and in metadata).
+     */
+    public function create_checkout_session( $event_id, $quantity, $donation_pence, $booking_id, $booking_reference, $customer_email = '', $ticket_price = null, $coupon_code = '' ) {
         $secret_key = $this->get_secret_key();
         if ( empty( $secret_key ) ) {
             return new WP_Error( 'no_stripe_key', __( 'Stripe API key not configured.', 'mira-event-list' ) );
@@ -40,7 +47,15 @@ class MiraStripe {
             return new WP_Error( 'no_event', __( 'Event not found.', 'mira-event-list' ) );
         }
 
-        $ticket_price_pence = intval( round( floatval( get_post_meta( $event_id, '_ticket_price', true ) ) * 100 ) );
+        if ( $ticket_price === null ) {
+            $ticket_price = floatval( get_post_meta( $event_id, '_ticket_price', true ) );
+        }
+        $ticket_price_pence = intval( round( floatval( $ticket_price ) * 100 ) );
+
+        $ticket_name = 'Ticket: ' . $event->post_title;
+        if ( $coupon_code !== '' ) {
+            $ticket_name .= ' (coupon ' . $coupon_code . ')';
+        }
 
         $success_page_id = (int) get_option( 'mira_stripe_success_page_id', 0 );
         $success_base    = $success_page_id
@@ -55,7 +70,7 @@ class MiraStripe {
             array(
                 'price_data' => array(
                     'currency'     => 'gbp',
-                    'product_data' => array( 'name' => 'Ticket: ' . $event->post_title ),
+                    'product_data' => array( 'name' => $ticket_name ),
                     'unit_amount'  => $ticket_price_pence,
                 ),
                 'quantity' => intval( $quantity ),
@@ -84,6 +99,7 @@ class MiraStripe {
                 'event_name'        => $event->post_title,
                 'booking_id'        => $booking_id,
                 'booking_reference' => $booking_reference,
+                'coupon_code'       => $coupon_code,
             ),
             'payment_intent_data' => array(
                 'description' => 'Tickets: ' . $event->post_title,

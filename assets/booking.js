@@ -112,6 +112,7 @@
             fd.append('quantity',   qty);
             fd.append('donation',   donation);
             fd.append('lead_email', email);
+            fd.append('coupon',     form.dataset.couponCode || '');
 
             fetch(ajaxUrl, { method: 'POST', body: fd })
                 .then(function (r) {
@@ -154,6 +155,122 @@
             form.querySelector('[name="quantity"]').addEventListener('change', function () { updateTotal(form); });
             var don = form.querySelector('[name="donation"]');
             if (don) don.addEventListener('input', function () { updateTotal(form); });
+        });
+
+        // ── Coupon codes ─────────────────────────────────────────────────
+        // Only events with a coupon get the link. The code is checked on the
+        // server (and checked again when the booking is made), so the
+        // discounted price can't be set from the browser.
+        function formatPrice(n) { return '£' + n.toFixed(2); }
+
+        function setTicketPrice(form, price) {
+            form.dataset.ticketPrice = price;
+            var btn = form.querySelector('.mira-book-btn');
+            if (btn) {
+                btn.dataset.label = formatPrice(price) + ' per ticket — Book Now';
+                if (!btn.disabled) btn.textContent = btn.dataset.label;
+            }
+            updateTotal(form);
+        }
+
+        document.querySelectorAll('.mira-booking-form[data-has-coupon]').forEach(function (form) {
+            form.dataset.basePrice = form.dataset.ticketPrice;
+
+            var wrap = document.createElement('div');
+            wrap.className = 'mira-coupon';
+            wrap.innerHTML =
+                '<a href="#" class="mira-coupon-toggle">Have a coupon code?</a>' +
+                '<div class="mira-coupon-fields" hidden>' +
+                    '<input type="text" class="mira-coupon-input" placeholder="Coupon code" ' +
+                        'autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="50" ' +
+                        'aria-label="Coupon code">' +
+                    '<button type="button" class="mira-coupon-apply">Apply</button>' +
+                '</div>' +
+                '<p class="mira-coupon-msg" role="status"></p>';
+            form.appendChild(wrap);
+
+            var toggle = wrap.querySelector('.mira-coupon-toggle');
+            var fields = wrap.querySelector('.mira-coupon-fields');
+            var input  = wrap.querySelector('.mira-coupon-input');
+            var apply  = wrap.querySelector('.mira-coupon-apply');
+            var msg    = wrap.querySelector('.mira-coupon-msg');
+
+            toggle.addEventListener('click', function (e) {
+                e.preventDefault();
+                fields.hidden = false;
+                toggle.hidden = true;
+                input.focus();
+            });
+
+            function removeCoupon(e) {
+                if (e) e.preventDefault();
+                delete form.dataset.couponCode;
+                setTicketPrice(form, parseFloat(form.dataset.basePrice) || 0);
+                input.value = '';
+                input.disabled = false;
+                apply.hidden = false;
+                msg.className = 'mira-coupon-msg';
+                msg.textContent = '';
+                input.focus();
+            }
+
+            function applyCoupon() {
+                var code = input.value.trim();
+                msg.className = 'mira-coupon-msg';
+                if (!code) {
+                    msg.classList.add('is-error');
+                    msg.textContent = 'Please enter a coupon code.';
+                    return;
+                }
+                apply.disabled = true;
+                apply.textContent = 'Checking…';
+                msg.textContent = '';
+
+                var fd = new FormData();
+                fd.append('action',   'mira_check_coupon');
+                fd.append('nonce',    form.dataset.nonce);
+                fd.append('event_id', form.dataset.eventId);
+                fd.append('coupon',   code);
+
+                fetch(form.dataset.ajaxUrl, { method: 'POST', body: fd })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        apply.disabled = false;
+                        apply.textContent = 'Apply';
+                        if (data.success) {
+                            var price = parseFloat(data.data.price) || 0;
+                            form.dataset.couponCode = code;
+                            setTicketPrice(form, price);
+                            input.disabled = true;
+                            apply.hidden = true;
+                            msg.classList.add('is-success');
+                            msg.innerHTML = '';
+                            msg.appendChild(document.createTextNode(
+                                'Coupon applied — ' + formatPrice(price) + ' per ticket. '));
+                            var rm = document.createElement('a');
+                            rm.href = '#';
+                            rm.className = 'mira-coupon-remove';
+                            rm.textContent = 'Remove';
+                            rm.addEventListener('click', removeCoupon);
+                            msg.appendChild(rm);
+                        } else {
+                            msg.classList.add('is-error');
+                            msg.textContent = data.data || 'That coupon code isn\'t valid.';
+                        }
+                    })
+                    .catch(function () {
+                        apply.disabled = false;
+                        apply.textContent = 'Apply';
+                        msg.classList.add('is-error');
+                        msg.textContent = 'Connection error. Please try again.';
+                    });
+            }
+
+            apply.addEventListener('click', applyCoupon);
+            // Enter in the coupon box applies the coupon instead of submitting the booking.
+            input.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); applyCoupon(); }
+            });
         });
 
         // ── Attendee form on success / booking-complete page ─────────────
