@@ -409,13 +409,15 @@ class MiraBookings {
             $booking->status = 'paid';
         }
 
+        $tracking = $this->purchase_tracking_script( $booking );
+
         // Attendees already collected — show confirmation
         if ( $booking->status === 'complete' ) {
             $attendees = $wpdb->get_results( $wpdb->prepare(
                 "SELECT * FROM $attendees_table WHERE booking_id = %d ORDER BY id ASC",
                 $booking->id
             ) );
-            return $this->render_confirmation( $booking, $attendees );
+            return $tracking . $this->render_confirmation( $booking, $attendees );
         }
 
         // Show attendee collection form
@@ -427,7 +429,65 @@ class MiraBookings {
             $buyer_email = $stripe_session['customer_details']['email'] ?? '';
         }
 
-        return $this->render_attendee_form( $booking, $event, $session_id, $buyer_email );
+        return $tracking . $this->render_attendee_form( $booking, $event, $session_id, $buyer_email );
+    }
+
+    /**
+     * One-off purchase tracking for analytics: a GA4 `purchase` event (via the
+     * site's gtag, e.g. Site Kit) and a Meta Pixel `Purchase` event (via fbq),
+     * each carrying the booking reference, total and ticket count. Output only
+     * the first time a paid booking's success page is shown, so reloads and
+     * revisits are not counted again. Booking references already tracked are
+     * kept in the `mira_tracked_purchases` option (last 1000).
+     */
+    private function purchase_tracking_script( $booking ) {
+        $ref = (string) $booking->booking_reference;
+        if ( '' === $ref ) {
+            return '';
+        }
+        // Only bookings made recently: stops older bookings (made before this
+        // tracking existed) counting as new sales if the buyer revisits the link.
+        $created = isset( $booking->created_at ) ? strtotime( $booking->created_at ) : 0;
+        if ( $created && $created < time() - 3 * DAY_IN_SECONDS ) {
+            return '';
+        }
+        $tracked = get_option( 'mira_tracked_purchases', array() );
+        if ( ! is_array( $tracked ) ) {
+            $tracked = array();
+        }
+        if ( isset( $tracked[ $ref ] ) ) {
+            return '';
+        }
+        $tracked[ $ref ] = time();
+        if ( count( $tracked ) > 1000 ) {
+            $tracked = array_slice( $tracked, -1000, null, true );
+        }
+        update_option( 'mira_tracked_purchases', $tracked, false );
+
+        $qty   = (int) $booking->quantity;
+        $total = round( (float) $booking->total_amount, 2 );
+        $data  = array(
+            'transaction_id' => $ref,
+            'value'          => $total,
+            'currency'       => 'GBP',
+            'items'          => array( array(
+                'item_id'   => (string) $booking->event_id,
+                'item_name' => html_entity_decode( get_the_title( $booking->event_id ), ENT_QUOTES, 'UTF-8' ),
+                'price'     => round( (float) $booking->ticket_price, 2 ),
+                'quantity'  => $qty,
+            ) ),
+        );
+        $fb = array(
+            'value'        => $total,
+            'currency'     => 'GBP',
+            'content_ids'  => array( (string) $booking->event_id ),
+            'content_type' => 'product',
+            'num_items'    => $qty,
+        );
+        return '<script>(function(){var g=' . wp_json_encode( $data ) . ',f=' . wp_json_encode( $fb ) . ',r=' . wp_json_encode( $ref ) . ';'
+            . 'function s(){if(typeof gtag==="function"){gtag("event","purchase",g);}'
+            . 'if(typeof fbq==="function"){fbq("track","Purchase",f,{eventID:r});}}'
+            . 'if(document.readyState==="complete"){s();}else{window.addEventListener("load",s);}})();</script>';
     }
 
     private function render_attendee_form( $booking, $event, $session_id, $buyer_email ) {

@@ -2,6 +2,16 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.16.0] - 2026-10-31
+
+### Added
+- **Purchase tracking for analytics.** The booking success page now fires a
+  GA4 `purchase` event (via the site's gtag, e.g. Site Kit) and a Meta Pixel
+  `Purchase` event (via fbq) with the booking reference, total (GBP), event and
+  ticket count. It fires once per booking: references already tracked are kept
+  in the `mira_tracked_purchases` option, so reloads/revisits don't double-count.
+  The reference is also sent as the Meta `eventID` for de-duplication.
+
 ## [2.15.0] - 2026-10-24
 
 ### Added
