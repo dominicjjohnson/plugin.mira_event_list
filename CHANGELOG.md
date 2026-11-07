@@ -2,6 +2,14 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.17.1] - 2026-11-07
+
+### Fixed
+- **Backup payment link invisible in booking errors.** The "pay via this
+  backup link" shown when a booking fails inherited the theme's link colour
+  (yellow on the yellow TW Comedy background), so customers couldn't see it.
+  It now uses the error colour, bold and underlined.
+
 ## [2.17.0] - 2026-11-06
 
 ### Added

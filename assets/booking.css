@@ -87,6 +87,15 @@
     min-height: 18px;
 }
 
+/* Backup payment link shown inside the error — keep it the error colour so
+   themes with a link colour matching the background (e.g. yellow) can't hide it. */
+.mira-booking-form .mira-booking-error a,
+.mira-booking-form .mira-booking-error a:visited {
+    color: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+}
+
 .mira-booking-total {
     margin-bottom: 10px;
     font-size: 15px;
