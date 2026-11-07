@@ -17,6 +17,9 @@ class MiraBookings {
         add_action( 'wp_ajax_mira_check_coupon',        array( $this, 'ajax_check_coupon' ) );
         add_action( 'wp_ajax_nopriv_mira_check_coupon', array( $this, 'ajax_check_coupon' ) );
 
+        add_action( 'wp_ajax_mira_refresh_nonce',        array( $this, 'ajax_refresh_nonce' ) );
+        add_action( 'wp_ajax_nopriv_mira_refresh_nonce', array( $this, 'ajax_refresh_nonce' ) );
+
         add_action( 'wp_ajax_mira_log_client_error',        array( $this, 'ajax_log_client_error' ) );
         add_action( 'wp_ajax_nopriv_mira_log_client_error', array( $this, 'ajax_log_client_error' ) );
 
@@ -264,6 +267,21 @@ class MiraBookings {
         );
 
         wp_send_json_success( array( 'url' => $session['url'] ) );
+    }
+
+    // ── AJAX: fresh booking nonce ────────────────────────────────────────
+
+    /**
+     * Hands the booking form a current nonce just before it books. Event
+     * pages are page-cached (Breeze + Varnish) for longer than a nonce lives,
+     * so the one baked into a cached page can be dead by the time a customer
+     * clicks Book Now — that 403 was the "Connection error". For logged-out
+     * visitors the nonce is the same for everyone, so this gives away nothing
+     * the page itself doesn't.
+     */
+    public function ajax_refresh_nonce() {
+        nocache_headers();
+        wp_send_json_success( array( 'nonce' => wp_create_nonce( 'mira_booking_nonce' ) ) );
     }
 
     // ── AJAX: client-side failure beacon ─────────────────────────────────

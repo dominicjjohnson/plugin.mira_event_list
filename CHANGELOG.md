@@ -2,6 +2,17 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.17.3] - 2026-11-07
+
+### Fixed
+- **"Connection error" on Book Now from cached pages.** Event pages are
+  cached (Breeze + Varnish) for up to 24 hours, longer than a WordPress
+  nonce lasts, so customers could be served a page whose booking token had
+  already expired and the booking was rejected with a 403. The form now
+  fetches a fresh token just before booking and before checking a coupon.
+  If a 403 still happens, customers are told to refresh the page instead
+  of seeing "Connection error".
+
 ## [2.17.2] - 2026-11-07
 
 ### Fixed

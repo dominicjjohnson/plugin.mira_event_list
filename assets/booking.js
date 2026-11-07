@@ -81,6 +81,21 @@
             } catch (e) { /* logging must never break the booking flow */ }
         }
 
+        // The nonce in the page can be stale when the page came from cache,
+        // so fetch a current one first. Any failure falls back to the page's
+        // nonce, which is no worse than before.
+        function freshNonce(form) {
+            var params = new URLSearchParams();
+            params.append('action', 'mira_refresh_nonce');
+            return fetch(form.dataset.ajaxUrl, { method: 'POST', body: params, credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (data) {
+                    if (data && data.success && data.data.nonce) form.dataset.nonce = data.data.nonce;
+                    return form.dataset.nonce;
+                })
+                .catch(function () { return form.dataset.nonce; });
+        }
+
         function showBookingFailure(errorEl, fallback, message) {
             if (fallback) {
                 errorEl.innerHTML = (message || 'Something went wrong.') +
@@ -105,19 +120,26 @@
             btn.textContent = 'Processing…';
             errorEl.innerHTML = '';
 
-            var fd = new FormData();
-            fd.append('action',     'mira_create_booking');
-            fd.append('nonce',      form.dataset.nonce);
-            fd.append('event_id',   eventId);
-            fd.append('quantity',   qty);
-            fd.append('donation',   donation);
-            fd.append('lead_email', email);
-            fd.append('coupon',     form.dataset.couponCode || '');
-
-            fetch(ajaxUrl, { method: 'POST', body: fd })
+            freshNonce(form)
+                .then(function (nonce) {
+                    var fd = new FormData();
+                    fd.append('action',     'mira_create_booking');
+                    fd.append('nonce',      nonce);
+                    fd.append('event_id',   eventId);
+                    fd.append('quantity',   qty);
+                    fd.append('donation',   donation);
+                    fd.append('lead_email', email);
+                    fd.append('coupon',     form.dataset.couponCode || '');
+                    return fetch(ajaxUrl, { method: 'POST', body: fd });
+                })
                 .then(function (r) {
                     if (!r.ok) {
                         logClientError(ajaxUrl, eventId, r.status, 'http_not_ok');
+                        if (r.status === 403) {
+                            var expired = new Error('HTTP 403');
+                            expired.expired = true;
+                            throw expired;
+                        }
                         throw new Error('HTTP ' + r.status);
                     }
                     return r.json();
@@ -134,7 +156,9 @@
                 })
                 .catch(function (err) {
                     logClientError(ajaxUrl, eventId, 0, 'fetch_exception: ' + err.message);
-                    showBookingFailure(errorEl, fallback, 'Connection error.');
+                    showBookingFailure(errorEl, fallback, err.expired
+                        ? 'This page has expired. Please refresh the page and try again.'
+                        : 'Connection error.');
                     btn.disabled    = false;
                     btn.textContent = btn.dataset.label;
                 });
@@ -226,13 +250,15 @@
                 apply.textContent = 'Checking…';
                 msg.textContent = '';
 
-                var fd = new FormData();
-                fd.append('action',   'mira_check_coupon');
-                fd.append('nonce',    form.dataset.nonce);
-                fd.append('event_id', form.dataset.eventId);
-                fd.append('coupon',   code);
-
-                fetch(form.dataset.ajaxUrl, { method: 'POST', body: fd })
+                freshNonce(form)
+                    .then(function (nonce) {
+                        var fd = new FormData();
+                        fd.append('action',   'mira_check_coupon');
+                        fd.append('nonce',    nonce);
+                        fd.append('event_id', form.dataset.eventId);
+                        fd.append('coupon',   code);
+                        return fetch(form.dataset.ajaxUrl, { method: 'POST', body: fd });
+                    })
                     .then(function (r) { return r.json(); })
                     .then(function (data) {
                         apply.disabled = false;
