@@ -503,6 +503,9 @@
 .mira-coupon {
     margin-top: 10px;
     font-size: 14px;
+    /* Set a colour rather than inheriting the theme's body text, which on
+       TW Comedy is white on the yellow page and hid the coupon link. */
+    color: #333;
 }
 .mira-coupon-toggle,
 .mira-coupon-remove {

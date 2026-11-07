@@ -2,6 +2,13 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.17.2] - 2026-11-07
+
+### Fixed
+- **Coupon link invisible on the booking form.** "Have a coupon code?"
+  inherited the theme's body text colour (white on the yellow TW Comedy
+  background), so it couldn't be seen. It now uses the form's dark grey.
+
 ## [2.17.1] - 2026-11-07
 
 ### Fixed
