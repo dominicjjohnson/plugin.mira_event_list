@@ -206,7 +206,7 @@
                 '<a href="#" class="mira-coupon-toggle">Have a coupon code?</a>' +
                 '<div class="mira-coupon-fields" hidden>' +
                     '<input type="text" class="mira-coupon-input" placeholder="Coupon code" ' +
-                        'autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="50" ' +
+                        'autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" maxlength="50" ' +
                         'aria-label="Coupon code">' +
                     '<button type="button" class="mira-coupon-apply">Apply</button>' +
                 '</div>' +

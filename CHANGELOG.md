@@ -2,6 +2,22 @@
 
 All notable changes to the Mira Event List plugin will be documented in this file.
 
+## [2.18.0] - 2026-11-10
+
+### Changed
+- **Backup payment links accept Stripe promotion codes** (`allow_promotion_codes`).
+  Site coupon codes don't reach Stripe, so matching promotion codes must be
+  created in the Stripe dashboard.
+- **Backup links follow price changes.** The cached link is reused only while
+  the event's price and quantity limit are unchanged; otherwise a new link is
+  created and the previous one (if its ID is known) is deactivated. Link ID and
+  a signature are stored in `_stripe_payment_link_id` / `_stripe_payment_link_sig`.
+
+## [2.17.4] - 2026-11-10
+
+### Fixed
+- Coupon code box now sets `autocorrect="off"` so iOS can't alter the code as it's typed.
+
 ## [2.17.3] - 2026-11-07
 
 ### Fixed

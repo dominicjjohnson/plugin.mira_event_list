@@ -147,11 +147,6 @@ class MiraStripe {
      * max the normal form allows) is adjustable on Stripe's own page.
      */
     public function get_or_create_payment_link( $event_id ) {
-        $cached = get_post_meta( $event_id, '_stripe_payment_link_url', true );
-        if ( $cached ) {
-            return $cached;
-        }
-
         $event = get_post( $event_id );
         if ( ! $event ) {
             return new WP_Error( 'no_event', __( 'Event not found.', 'mira-event-list' ) );
@@ -164,6 +159,16 @@ class MiraStripe {
 
         $max_tickets = (int) get_post_meta( $event_id, '_max_tickets', true );
         $qty_max     = $max_tickets > 0 ? min( 10, $max_tickets ) : 10;
+
+        // Reuse the cached link only while it still matches the event's price
+        // and quantity limit (and was created with promotion codes enabled).
+        // A changed price gets a fresh link and the old one is deactivated, so
+        // the backup link can never charge an out-of-date price.
+        $signature = $ticket_price_pence . '|' . $qty_max . '|promo';
+        $cached    = get_post_meta( $event_id, '_stripe_payment_link_url', true );
+        if ( $cached && get_post_meta( $event_id, '_stripe_payment_link_sig', true ) === $signature ) {
+            return $cached;
+        }
 
         $price = $this->api_request( 'prices', array(
             'currency'     => 'gbp',
@@ -186,6 +191,10 @@ class MiraStripe {
                     ),
                 ),
             ),
+            // Lets buyers enter a Stripe promotion code on the Stripe page.
+            // Site coupon codes don't reach Stripe, so matching promotion
+            // codes must be created in the Stripe dashboard.
+            'allow_promotion_codes' => 'true',
             'metadata' => array(
                 'event_id'   => $event_id,
                 'event_name' => $event->post_title,
@@ -202,7 +211,16 @@ class MiraStripe {
             return $link;
         }
 
+        // Switch off the previous link (if we know it) so old copies of the
+        // URL can't be used at the old price.
+        $old_id = get_post_meta( $event_id, '_stripe_payment_link_id', true );
+        if ( $old_id && $old_id !== $link['id'] ) {
+            $this->api_request( 'payment_links/' . $old_id, array( 'active' => 'false' ) );
+        }
+
         update_post_meta( $event_id, '_stripe_payment_link_url', $link['url'] );
+        update_post_meta( $event_id, '_stripe_payment_link_id', $link['id'] );
+        update_post_meta( $event_id, '_stripe_payment_link_sig', $signature );
 
         return $link['url'];
     }
